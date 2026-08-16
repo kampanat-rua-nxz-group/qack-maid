@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>qack-maid</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f5f5f7;
+    --border: #d8d8dc;
+    --text: #1a1a1e;
+    --muted: #6b6b74;
+    --accent: #2f6fed;
+    --error-bg: #fdecec;
+    --error-border: #e0554f;
+    --error-text: #9c1f1a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161a;
+      --panel: #1e1e24;
+      --border: #33333c;
+      --text: #eaeaef;
+      --muted: #9a9aa5;
+      --accent: #6c9bff;
+      --error-bg: #3a1c1c;
+      --error-border: #b6473f;
+      --error-text: #ff8f88;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+  header .spacer { flex: 1; }
+  select, button {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+  }
+  .pane:last-child { border-right: none; }
+  .pane-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 8px 12px 4px;
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    border: none;
+    outline: none;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 8px 12px 16px;
+  }
+  .preview-wrap {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background: var(--bg);
+  }
+  #preview {
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  #preview.has-error svg { opacity: 0.35; }
+  #preview svg { max-width: 100%; height: auto; }
+  #error-banner {
+    display: none;
+    position: sticky;
+    top: 0;
+    margin: 8px 12px 0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--error-bg);
+    border: 1px solid var(--error-border);
+    color: var(--error-text);
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap;
+    z-index: 2;
+  }
+  #error-banner.show { display: block; }
+  footer {
+    padding: 4px 16px;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>qack-maid</h1>
+  <select id="examples">
+    <option value="">Load example…</option>
+    <option value="sequence">Sequence</option>
+    <option value="er">ER diagram</option>
+    <option value="flowchart">Flowchart</option>
+    <option value="class">Class</option>
+    <option value="gantt">Gantt</option>
+    <option value="state">State</option>
+  </select>
+  <div class="spacer"></div>
+  <button id="format">Format</button>
+  <button id="export-svg">Export SVG</button>
+  <button id="export-png">Export PNG</button>
+</header>
+<main>
+  <div class="pane">
+    <div class="pane-label">Mermaid source</div>
+    <textarea id="source" spellcheck="false" autocomplete="off"></textarea>
+  </div>
+  <div class="pane">
+    <div class="pane-label">Preview</div>
+    <div class="preview-wrap">
+      <div id="error-banner"></div>
+      <div id="preview"></div>
+    </div>
+  </div>
+</main>
+<footer>Offline Mermaid renderer. Autosaves to this browser only — nothing leaves your machine.</footer>
+
+<script src="mermaid.min.js"></script>
+<script>
+mermaid.initialize({ startOnLoad: false, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
+
+const STORAGE_KEY = "qack-maid:source";
+const sourceEl = document.getElementById("source");
+const previewEl = document.getElementById("preview");
+const errorEl = document.getElementById("error-banner");
+const examplesEl = document.getElementById("examples");
+
+const EXAMPLES = {
+  sequence: `sequenceDiagram
+    participant A as Client
+    participant B as Server
+    A->>B: Request
+    B-->>A: Response`,
+  er: `erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE_ITEM : contains
+    CUSTOMER {
+        string name
+        string email
+    }`,
+  flowchart: `flowchart TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Do thing]
+    B -->|No| D[Skip]
+    C --> E[End]
+    D --> E`,
+  class: `classDiagram
+    class Animal {
+      +String name
+      +move()
+    }
+    class Dog {
+      +bark()
+    }
+    Animal <|-- Dog`,
+  gantt: `gantt
+    title Project
+    dateFormat  YYYY-MM-DD
+    section Phase 1
+    Task A :a1, 2026-01-01, 5d
+    Task B :after a1, 3d`,
+  state: `stateDiagram-v2
+    [*] --> Idle
+    Idle --> Running : start
+    Running --> Idle : stop
+    Running --> [*]`,
+};
+
+let renderSeq = 0;
+
+async function render() {
+  const code = sourceEl.value.trim();
+  localStorage.setItem(STORAGE_KEY, sourceEl.value);
+  if (!code) {
+    previewEl.innerHTML = "";
+    previewEl.classList.remove("has-error");
+    errorEl.classList.remove("show");
+    return;
+  }
+  const id = "graph-" + (++renderSeq);
+  try {
+    const { svg } = await mermaid.render(id, code);
+    previewEl.innerHTML = svg;
+    previewEl.classList.remove("has-error");
+    errorEl.classList.remove("show");
+  } catch (err) {
+    previewEl.classList.add("has-error");
+    errorEl.textContent = (err && err.message) ? err.message : String(err);
+    errorEl.classList.add("show");
+    // remove any stray error DOM mermaid injects outside #preview
+    document.querySelectorAll('[id^="dqueue-"], [id^="d' + id + '"]').forEach(n => n.remove());
+  }
+}
+
+let debounceTimer;
+sourceEl.addEventListener("input", () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(render, 250);
+});
+
+examplesEl.addEventListener("change", () => {
+  const key = examplesEl.value;
+  if (!key) return;
+  sourceEl.value = EXAMPLES[key];
+  examplesEl.value = "";
+  render();
+});
+
+function formatMermaid(code) {
+  const lines = code
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== ""); // drop all blank lines
+  if (!lines.length) return "";
+
+  const out = [lines[0]]; // diagram-type declaration stays at indent 0
+  let depth = 1;
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("}")) depth = Math.max(1, depth - 1);
+    out.push("    ".repeat(depth) + line);
+    if (line.endsWith("{")) depth += 1;
+  }
+  return out.join("\n");
+}
+
+document.getElementById("format").addEventListener("click", () => {
+  sourceEl.value = formatMermaid(sourceEl.value);
+  render();
+});
+
+document.getElementById("export-svg").addEventListener("click", () => {
+  const svg = previewEl.querySelector("svg");
+  if (!svg) return;
+  const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
+  downloadBlob(blob, "diagram.svg");
+});
+
+document.getElementById("export-png").addEventListener("click", () => {
+  const svg = previewEl.querySelector("svg");
+  if (!svg) return;
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+  const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+  img.onload = () => {
+    const bbox = svg.getBoundingClientRect();
+    const scale = 2; // export at 2x for crispness
+    const canvas = document.createElement("canvas");
+    canvas.width = (svg.viewBox?.baseVal?.width || bbox.width) * scale;
+    canvas.height = (svg.viewBox?.baseVal?.height || bbox.height) * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--bg") || "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob((blob) => downloadBlob(blob, "diagram.png"));
+  };
+  img.src = url;
+});
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// restore autosaved source, else load a default example
+const saved = localStorage.getItem(STORAGE_KEY);
+sourceEl.value = saved !== null && saved !== "" ? saved : EXAMPLES.flowchart;
+render();
+</script>
+</body>
+</html>
