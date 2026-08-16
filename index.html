@@ -106,6 +106,8 @@
     overflow: auto;
     background: var(--bg);
   }
+  .preview-wrap[data-preview="light"] { background: #ffffff; }
+  .preview-wrap[data-preview="dark"] { background: #16161a; }
   #preview {
     padding: 16px;
     display: flex;
@@ -130,6 +132,28 @@
     z-index: 2;
   }
   #error-banner.show { display: block; }
+  #color-row {
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  #color-row.show { display: flex; }
+  #color-row label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  #color-row input[type="color"] {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+  }
   footer {
     padding: 4px 16px;
     font-size: 11px;
@@ -150,6 +174,26 @@
     <option value="gantt">Gantt</option>
     <option value="state">State</option>
   </select>
+  <select id="theme-select">
+    <option value="auto">Theme: Auto</option>
+    <option value="default">Theme: Default</option>
+    <option value="dark">Theme: Dark</option>
+    <option value="forest">Theme: Forest</option>
+    <option value="neutral">Theme: Neutral</option>
+    <option value="custom">Theme: Custom colors</option>
+  </select>
+  <select id="preview-bg-select">
+    <option value="auto">Preview: Auto</option>
+    <option value="light">Preview: Light</option>
+    <option value="dark">Preview: Dark</option>
+  </select>
+  <div id="color-row">
+    <label>Primary <input type="color" id="color-primary" /></label>
+    <label>Text <input type="color" id="color-text" /></label>
+    <label>Line <input type="color" id="color-line" /></label>
+    <label>Secondary <input type="color" id="color-secondary" /></label>
+    <button id="reset-colors" type="button">Reset colors</button>
+  </div>
   <div class="spacer"></div>
   <button id="format">Format</button>
   <button id="export-svg">Export SVG</button>
@@ -172,13 +216,128 @@
 
 <script src="mermaid.min.js"></script>
 <script>
-mermaid.initialize({ startOnLoad: false, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });
-
 const STORAGE_KEY = "qack-maid:source";
+const THEME_KEY = "qack-maid:theme";
+const PREVIEW_BG_KEY = "qack-maid:preview-bg";
 const sourceEl = document.getElementById("source");
 const previewEl = document.getElementById("preview");
 const errorEl = document.getElementById("error-banner");
 const examplesEl = document.getElementById("examples");
+const themeSelectEl = document.getElementById("theme-select");
+const colorRowEl = document.getElementById("color-row");
+const colorPrimaryEl = document.getElementById("color-primary");
+const colorTextEl = document.getElementById("color-text");
+const colorLineEl = document.getElementById("color-line");
+const colorSecondaryEl = document.getElementById("color-secondary");
+const resetColorsEl = document.getElementById("reset-colors");
+const previewWrapEl = document.querySelector(".preview-wrap");
+const previewBgSelectEl = document.getElementById("preview-bg-select");
+
+const DEFAULT_CUSTOM_COLORS = {
+  primary: "#2f6fed",
+  text: "#ffffff",
+  line: "#6b6b74",
+  secondary: "#e0554f",
+};
+
+function loadThemeSettings() {
+  try {
+    const raw = localStorage.getItem(THEME_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return { mode: "auto", colors: DEFAULT_CUSTOM_COLORS };
+}
+
+function saveThemeSettings(settings) {
+  localStorage.setItem(THEME_KEY, JSON.stringify(settings));
+}
+
+let themeSettings = loadThemeSettings();
+
+function applyMermaidTheme() {
+  const { mode, colors } = themeSettings;
+  if (mode === "custom") {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "base",
+      themeVariables: {
+        primaryColor: colors.primary,
+        primaryTextColor: colors.text,
+        lineColor: colors.line,
+        secondaryColor: colors.secondary,
+      },
+    });
+  } else if (mode === "auto") {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+    });
+  } else {
+    mermaid.initialize({ startOnLoad: false, theme: mode });
+  }
+}
+
+function syncThemeUI() {
+  themeSelectEl.value = themeSettings.mode;
+  colorRowEl.classList.toggle("show", themeSettings.mode === "custom");
+  const c = { ...DEFAULT_CUSTOM_COLORS, ...themeSettings.colors };
+  colorPrimaryEl.value = c.primary;
+  colorTextEl.value = c.text;
+  colorLineEl.value = c.line;
+  colorSecondaryEl.value = c.secondary;
+}
+
+syncThemeUI();
+applyMermaidTheme();
+
+themeSelectEl.addEventListener("change", () => {
+  themeSettings.mode = themeSelectEl.value;
+  saveThemeSettings(themeSettings);
+  syncThemeUI();
+  applyMermaidTheme();
+  render();
+});
+
+[colorPrimaryEl, colorTextEl, colorLineEl, colorSecondaryEl].forEach((el) => {
+  el.addEventListener("input", () => {
+    themeSettings.colors = {
+      primary: colorPrimaryEl.value,
+      text: colorTextEl.value,
+      line: colorLineEl.value,
+      secondary: colorSecondaryEl.value,
+    };
+    saveThemeSettings(themeSettings);
+    applyMermaidTheme();
+    render();
+  });
+});
+
+resetColorsEl.addEventListener("click", () => {
+  themeSettings.colors = { ...DEFAULT_CUSTOM_COLORS };
+  saveThemeSettings(themeSettings);
+  syncThemeUI();
+  applyMermaidTheme();
+  render();
+});
+
+let previewBg = localStorage.getItem(PREVIEW_BG_KEY) || "auto";
+
+function applyPreviewBg() {
+  if (previewBg === "auto") {
+    previewWrapEl.removeAttribute("data-preview");
+  } else {
+    previewWrapEl.setAttribute("data-preview", previewBg);
+  }
+}
+
+previewBgSelectEl.value = previewBg;
+applyPreviewBg();
+
+previewBgSelectEl.addEventListener("change", () => {
+  previewBg = previewBgSelectEl.value;
+  localStorage.setItem(PREVIEW_BG_KEY, previewBg);
+  applyPreviewBg();
+});
 
 const EXAMPLES = {
   sequence: `sequenceDiagram
@@ -305,7 +464,7 @@ document.getElementById("export-png").addEventListener("click", () => {
     canvas.width = (svg.viewBox?.baseVal?.width || bbox.width) * scale;
     canvas.height = (svg.viewBox?.baseVal?.height || bbox.height) * scale;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--bg") || "#fff";
+    ctx.fillStyle = getComputedStyle(previewWrapEl).backgroundColor || "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     URL.revokeObjectURL(url);
