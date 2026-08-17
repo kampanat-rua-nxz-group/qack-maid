@@ -78,10 +78,27 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
     position: relative;
   }
-  .pane:last-child { border-right: none; }
+  .pane[data-pane="source"] { flex: 0 0 var(--split, 50%); }
+  .pane[data-pane="preview"] { flex: 1 1 auto; border-left: 1px solid var(--border); }
+  #splitter {
+    flex: 0 0 6px;
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+  }
+  #splitter::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 2px;
+    width: 2px;
+    background: var(--border);
+  }
+  #splitter:hover::after, #splitter.dragging::after { background: var(--accent); }
   .pane-label {
     font-size: 11px;
     text-transform: uppercase;
@@ -191,10 +208,12 @@
     }
     main { flex-direction: column; }
     .pane {
-      border-right: none;
       display: none;
     }
+    .pane[data-pane="source"] { flex-basis: auto; }
+    .pane[data-pane="preview"] { border-left: none; }
     .pane.active-pane { display: flex; }
+    #splitter { display: none; }
   }
   #color-row {
     display: none;
@@ -272,6 +291,7 @@
     <div class="pane-label">Mermaid source</div>
     <textarea id="source" spellcheck="false" autocomplete="off"></textarea>
   </div>
+  <div id="splitter"></div>
   <div class="pane" data-pane="preview">
     <div class="pane-label">Preview <span id="preview-status"></span></div>
     <div class="preview-wrap">
@@ -293,6 +313,7 @@
 const STORAGE_KEY = "qack-maid:source";
 const THEME_KEY = "qack-maid:theme";
 const PREVIEW_BG_KEY = "qack-maid:preview-bg";
+const SPLIT_KEY = "qack-maid:split";
 const sourceEl = document.getElementById("source");
 const previewEl = document.getElementById("preview");
 const errorEl = document.getElementById("error-banner");
@@ -579,6 +600,44 @@ previewWrapEl.addEventListener("wheel", (e) => {
   zoomLevel = Math.min(3, Math.max(0.25, +(zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)));
   applyZoom();
 }, { passive: false });
+
+const mainEl = document.querySelector("main");
+const splitterEl = document.getElementById("splitter");
+const sourcePaneEl = document.querySelector('.pane[data-pane="source"]');
+
+function applySplit(pct) {
+  mainEl.style.setProperty("--split", pct + "%");
+}
+
+const savedSplit = parseFloat(localStorage.getItem(SPLIT_KEY));
+applySplit(Number.isFinite(savedSplit) ? savedSplit : 50);
+
+splitterEl.addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  splitterEl.classList.add("dragging");
+  document.body.style.userSelect = "none";
+  const onMove = (moveEvent) => {
+    const rect = mainEl.getBoundingClientRect();
+    let pct = ((moveEvent.clientX - rect.left) / rect.width) * 100;
+    pct = Math.min(80, Math.max(20, pct));
+    applySplit(pct);
+  };
+  const onUp = () => {
+    splitterEl.classList.remove("dragging");
+    document.body.style.userSelect = "";
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+    const pct = parseFloat(mainEl.style.getPropertyValue("--split"));
+    if (Number.isFinite(pct)) localStorage.setItem(SPLIT_KEY, pct);
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+});
+
+splitterEl.addEventListener("dblclick", () => {
+  applySplit(50);
+  localStorage.setItem(SPLIT_KEY, 50);
+});
 
 examplesEl.addEventListener("change", () => {
   const key = examplesEl.value;
