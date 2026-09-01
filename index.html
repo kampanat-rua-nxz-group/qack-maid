@@ -772,12 +772,23 @@ document.getElementById("export-svg").addEventListener("click", async () => {
   const svg = previewEl.querySelector("svg");
   if (!svg) return;
   const copy = svg.cloneNode(true);
+  // The live SVG carries the preview pane's zoom as inline px width/height. Left
+  // in place they fight the stamped viewBox and export a stretched diagram.
+  copy.style.removeProperty("width");
+  copy.style.removeProperty("height");
+  copy.style.removeProperty("max-width");
+  delete copy.dataset.baseWidth;
+  delete copy.dataset.baseHeight;
   try {
     await appendStampToSvg(copy, svg);
   } catch {
     // A failed stamp must not cost the user their export.
   }
-  const blob = new Blob([copy.outerHTML], { type: "image/svg+xml" });
+  // Must be XMLSerializer, not outerHTML: the HTML serializer leaves Mermaid's
+  // <br> in labels unclosed and omits the xmlns:xlink declaration the stamp
+  // needs, either of which makes the downloaded file unparseable as SVG.
+  const markup = new XMLSerializer().serializeToString(copy);
+  const blob = new Blob([markup], { type: "image/svg+xml;charset=utf-8" });
   downloadBlob(blob, "diagram.svg");
 });
 
@@ -820,11 +831,10 @@ async function appendStampToSvg(copy, svg) {
   image.setAttribute("width", m.logoWidth);
   image.setAttribute("height", m.logoHeight);
   image.setAttribute("opacity", STAMP_ALPHA);
-  image.setAttributeNS(
-    "http://www.w3.org/1999/xlink",
-    "href",
-    tintedLogoCanvas(logo, m.logoHeight * 4, color).toDataURL("image/png"),
-  );
+  const logoData = tintedLogoCanvas(logo, m.logoHeight * 4, color).toDataURL("image/png");
+  image.setAttribute("href", logoData);
+  // xlink:href as well, for viewers predating SVG 2.
+  image.setAttributeNS("http://www.w3.org/1999/xlink", "href", logoData);
 
   copy.appendChild(text);
   copy.appendChild(image);
