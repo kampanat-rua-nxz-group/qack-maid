@@ -127,12 +127,12 @@
   .preview-wrap {
     flex: 1;
     position: relative;
-    overflow: auto;
+    overflow: hidden;
     background: var(--bg);
   }
   .preview-wrap[data-preview="light"] { background: #ffffff; }
   .preview-wrap[data-preview="dark"] { background: #16161a; }
-  .preview-wrap.pannable { cursor: grab; }
+  .preview-wrap { cursor: grab; }
   .preview-wrap.panning { cursor: grabbing; }
   .preview-wrap.panning #preview { user-select: none; }
   #preview {
@@ -682,7 +682,7 @@ function applyZoom() {
   }
   previewEl.classList.toggle("zoomed", zoomLevel !== 1);
   zoomLevelEl.textContent = Math.round(zoomLevel * 100) + "%";
-  refreshPanCursor();
+  clampPan();
 }
 document.getElementById("zoom-in").addEventListener("click", () => {
   zoomLevel = Math.min(3, +(zoomLevel + 0.15).toFixed(2));
@@ -694,37 +694,70 @@ document.getElementById("zoom-out").addEventListener("click", () => {
 });
 document.getElementById("zoom-reset").addEventListener("click", () => {
   zoomLevel = 1;
+  resetPan();
   applyZoom();
 });
 previewWrapEl.addEventListener("wheel", (e) => {
-  if (!(e.ctrlKey || e.metaKey)) return;
   e.preventDefault();
-  zoomLevel = Math.min(3, Math.max(0.25, +(zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)));
-  applyZoom();
+  if (e.ctrlKey || e.metaKey) {
+    zoomLevel = Math.min(3, Math.max(0.25, +(zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)));
+    applyZoom();
+    return;
+  }
+  // the pane clips rather than scrolls, so the wheel pans the diagram instead
+  panBy(-e.deltaX, -e.deltaY);
 }, { passive: false });
 
-// Drag-to-pan: the preview pane is the scroll container, so panning is just
-// moving its scroll offsets by the inverse of the pointer delta. Only engages
-// when the diagram actually overflows (typically once zoomed in).
-function previewCanPan() {
-  return previewWrapEl.scrollWidth > previewWrapEl.clientWidth ||
-    previewWrapEl.scrollHeight > previewWrapEl.clientHeight;
+// Drag-to-pan. The pane clips instead of scrolling, and the diagram is moved by
+// translating #preview (never the <svg> itself — exports read the svg's inline
+// width/height and its own box, which a translate on the parent leaves alone).
+// Panning is free in both axes rather than bounded by overflow, so a tall,
+// narrow diagram still moves left/right; clampPan() only stops it from being
+// dragged completely out of sight.
+const PAN_KEEP_VISIBLE = 60;
+let panX = 0, panY = 0;
+
+function applyPan() {
+  previewEl.style.transform = (panX || panY) ? "translate(" + panX + "px," + panY + "px)" : "";
 }
-function refreshPanCursor() {
-  previewWrapEl.classList.toggle("pannable", previewCanPan());
+function clampPan() {
+  const svg = previewEl.querySelector("svg");
+  if (!svg) return;
+  const wrap = previewWrapEl.getBoundingClientRect();
+  const box = svg.getBoundingClientRect(); // already reflects the current pan
+  let dx = 0, dy = 0;
+  if (box.right < wrap.left + PAN_KEEP_VISIBLE) dx = wrap.left + PAN_KEEP_VISIBLE - box.right;
+  else if (box.left > wrap.right - PAN_KEEP_VISIBLE) dx = wrap.right - PAN_KEEP_VISIBLE - box.left;
+  if (box.bottom < wrap.top + PAN_KEEP_VISIBLE) dy = wrap.top + PAN_KEEP_VISIBLE - box.bottom;
+  else if (box.top > wrap.bottom - PAN_KEEP_VISIBLE) dy = wrap.bottom - PAN_KEEP_VISIBLE - box.top;
+  if (dx || dy) {
+    panX += dx;
+    panY += dy;
+    applyPan();
+  }
 }
-previewWrapEl.addEventListener("pointerenter", refreshPanCursor);
+function resetPan() {
+  panX = panY = 0;
+  applyPan();
+}
+function panBy(dx, dy) {
+  panX += dx;
+  panY += dy;
+  applyPan();
+  clampPan();
+}
+
 previewWrapEl.addEventListener("pointerdown", (e) => {
   // left button only, and never steal a click meant for selecting text/links
-  if (e.button !== 0 || !previewCanPan()) return;
+  if (e.button !== 0) return;
   e.preventDefault();
-  const startX = e.clientX, startY = e.clientY;
-  const startLeft = previewWrapEl.scrollLeft, startTop = previewWrapEl.scrollTop;
+  let lastX = e.clientX, lastY = e.clientY;
   previewWrapEl.classList.add("panning");
   previewWrapEl.setPointerCapture(e.pointerId);
   const onMove = (moveEvent) => {
-    previewWrapEl.scrollLeft = startLeft - (moveEvent.clientX - startX);
-    previewWrapEl.scrollTop = startTop - (moveEvent.clientY - startY);
+    panBy(moveEvent.clientX - lastX, moveEvent.clientY - lastY);
+    lastX = moveEvent.clientX;
+    lastY = moveEvent.clientY;
   };
   const onUp = () => {
     previewWrapEl.classList.remove("panning");
@@ -732,7 +765,6 @@ previewWrapEl.addEventListener("pointerdown", (e) => {
     previewWrapEl.removeEventListener("pointermove", onMove);
     previewWrapEl.removeEventListener("pointerup", onUp);
     previewWrapEl.removeEventListener("pointercancel", onUp);
-    refreshPanCursor();
   };
   previewWrapEl.addEventListener("pointermove", onMove);
   previewWrapEl.addEventListener("pointerup", onUp);
