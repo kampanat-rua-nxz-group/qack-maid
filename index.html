@@ -779,6 +779,7 @@ document.getElementById("export-svg").addEventListener("click", async () => {
   copy.style.removeProperty("max-width");
   delete copy.dataset.baseWidth;
   delete copy.dataset.baseHeight;
+  stripBackgroundForExport(copy);
   try {
     await appendStampToSvg(copy, svg);
   } catch {
@@ -791,6 +792,28 @@ document.getElementById("export-svg").addEventListener("click", async () => {
   const blob = new Blob([markup], { type: "image/svg+xml;charset=utf-8" });
   downloadBlob(blob, "diagram.svg");
 });
+
+// Exports carry a transparent background, so the diagram drops onto whatever the
+// file is pasted into. Mermaid normally leaves the SVG root unpainted, but a
+// theme (or a diagram type that paints its own canvas) can pin a background on
+// the root element or in the root rule of the stylesheet it inlines — strip both.
+// Only the root selector is touched: `background-color` elsewhere in that sheet
+// is what makes edge labels legible where they cross a line.
+function stripBackgroundForExport(copy) {
+  copy.style.removeProperty("background");
+  copy.style.removeProperty("background-color");
+  const rootRule = copy.id
+    ? new RegExp(`(?:#${copy.id.replace(/[^\w-]/g, "\\$&")}|svg)\\s*\\{[^}]*\\}`, "g")
+    : /svg\s*\{[^}]*\}/g;
+  copy.querySelectorAll("style").forEach((styleEl) => {
+    styleEl.textContent = styleEl.textContent.replace(rootRule, (rule) =>
+      rule.replace(/background(-color)?\s*:[^;}]*;?/g, ""),
+    );
+  });
+  copy.querySelectorAll(":scope > rect").forEach((rect) => {
+    if (rect.classList.contains("background")) rect.remove();
+  });
+}
 
 // Grows the exported SVG by a band at the bottom and draws the attribution into
 // it, so the stamp never overlaps diagram content.
@@ -940,8 +963,8 @@ document.getElementById("export-png").addEventListener("click", () => {
     canvas.width = pxWidth * scale;
     canvas.height = (pxHeight + m.bandHeight) * scale;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = getComputedStyle(previewWrapEl).backgroundColor || "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Left unfilled on purpose: a fresh canvas is transparent, and the PNG keeps
+    // that alpha so the export matches the SVG and composites onto any backdrop.
     ctx.drawImage(img, 0, 0, pxWidth * scale, pxHeight * scale);
     URL.revokeObjectURL(url);
     try {
