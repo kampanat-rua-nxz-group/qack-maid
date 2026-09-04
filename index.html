@@ -68,6 +68,68 @@
     cursor: pointer;
   }
   button:hover, select:hover { border-color: var(--accent); }
+  /* Export menu: one trigger button with a popup list of the four export
+     actions (download/copy x svg/png), so the header stays uncluttered. */
+  .menu { position: relative; display: inline-flex; }
+  .menu-trigger .caret { font-size: 9px; margin-left: 6px; vertical-align: 1px; }
+  .menu-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 190px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    z-index: 20;
+  }
+  .menu.open .menu-list { display: flex; }
+  .menu-list button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: none;
+    text-align: left;
+  }
+  .menu-list button:hover, .menu-list button:focus-visible {
+    border-color: transparent;
+    background: var(--bg);
+  }
+  .menu-list .hint { font-size: 11px; color: var(--muted); }
+  .menu-group {
+    padding: 6px 10px 2px;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  #toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translate(-50%, 8px);
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 50;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
   main {
     flex: 1;
     display: flex;
@@ -209,6 +271,9 @@
       font-weight: 600;
       box-shadow: inset 0 -2px 0 var(--accent);
     }
+    /* The header wraps at this width, so the trigger can sit far enough left that
+       a right-aligned popup runs off screen — anchor it to the trigger's left. */
+    .menu-list { left: 0; right: auto; }
     main { flex-direction: column; }
     .pane {
       display: none;
@@ -303,8 +368,17 @@
   </div>
   <div class="spacer"></div>
   <button id="format">Format</button>
-  <button id="export-svg">Export SVG</button>
-  <button id="export-png">Export PNG</button>
+  <div class="menu" id="export-menu">
+    <button type="button" class="menu-trigger" id="export-trigger" aria-haspopup="true" aria-expanded="false">Export<span class="caret">▾</span></button>
+    <div class="menu-list" role="menu" aria-labelledby="export-trigger">
+      <div class="menu-group">Download</div>
+      <button type="button" role="menuitem" data-export="download-svg">SVG file<span class="hint" id="svg-shortcut"></span></button>
+      <button type="button" role="menuitem" data-export="download-png">PNG file</button>
+      <div class="menu-group">Copy to clipboard</div>
+      <button type="button" role="menuitem" data-export="copy-svg">SVG markup</button>
+      <button type="button" role="menuitem" data-export="copy-png">PNG image</button>
+    </div>
+  </div>
 </header>
 <div class="mobile-tabs">
   <button type="button" class="tab-btn active" data-pane="source">Source</button>
@@ -334,6 +408,7 @@
   <span>Offline Mermaid renderer. Autosaves to this browser only — nothing leaves your machine.</span>
   <span class="powered-by">Powered by <span class="qack-logo" role="img" aria-label="QACK Skills"></span></span>
 </footer>
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script src="mermaid.min.js"></script>
 <script>
@@ -651,7 +726,7 @@ document.addEventListener("keydown", (e) => {
     render();
   } else if (e.key.toLowerCase() === "s") {
     e.preventDefault();
-    document.getElementById("export-svg").click();
+    runExport("download-svg");
   }
 });
 
@@ -840,9 +915,13 @@ document.getElementById("format").addEventListener("click", () => {
   render();
 });
 
-document.getElementById("export-svg").addEventListener("click", async () => {
+// Serializes the current Preview to standalone SVG markup: a stamped,
+// background-stripped clone of the rendered <svg>. Returns null when there is no
+// Preview at all — a failed render leaves the previous one in place, so this is
+// only the case before the first successful render.
+async function buildExportSvgMarkup() {
   const svg = previewEl.querySelector("svg");
-  if (!svg) return;
+  if (!svg) return null;
   const copy = svg.cloneNode(true);
   // The live SVG carries the preview pane's zoom as inline px width/height. Left
   // in place they fight the stamped viewBox and export a stretched diagram.
@@ -860,10 +939,8 @@ document.getElementById("export-svg").addEventListener("click", async () => {
   // Must be XMLSerializer, not outerHTML: the HTML serializer leaves Mermaid's
   // <br> in labels unclosed and omits the xmlns:xlink declaration the stamp
   // needs, either of which makes the downloaded file unparseable as SVG.
-  const markup = new XMLSerializer().serializeToString(copy);
-  const blob = new Blob([markup], { type: "image/svg+xml;charset=utf-8" });
-  downloadBlob(blob, "diagram.svg");
-});
+  return new XMLSerializer().serializeToString(copy);
+}
 
 // Exports carry a transparent background, so the diagram drops onto whatever the
 // file is pasted into. Mermaid normally leaves the SVG root unpainted, but a
@@ -1008,9 +1085,12 @@ function flattenLabelsForExport(svg) {
   return clone;
 }
 
-document.getElementById("export-png").addEventListener("click", () => {
+// Rasterizes the current Preview to a stamped PNG blob at 2x. Resolves to null
+// under the same no-Preview condition as buildExportSvgMarkup(); rejects if the
+// SVG fails to rasterize or encode.
+function buildExportPngBlob() {
   const svg = previewEl.querySelector("svg");
-  if (!svg) return;
+  if (!svg) return Promise.resolve(null);
   const flatSvg = flattenLabelsForExport(svg);
   const bbox = svg.getBoundingClientRect();
   const pxWidth = svg.viewBox?.baseVal?.width || bbox.width;
@@ -1025,29 +1105,35 @@ document.getElementById("export-png").addEventListener("click", () => {
   flatSvg.setAttribute("width", pxWidth);
   flatSvg.setAttribute("height", pxHeight);
   const svgData = new XMLSerializer().serializeToString(flatSvg);
-  const img = new Image();
   const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(svgBlob);
-  img.onload = async () => {
-    const scale = 2; // export at 2x for crispness
-    const m = stampMetrics(pxWidth);
-    const canvas = document.createElement("canvas");
-    canvas.width = pxWidth * scale;
-    canvas.height = (pxHeight + m.bandHeight) * scale;
-    const ctx = canvas.getContext("2d");
-    // Left unfilled on purpose: a fresh canvas is transparent, and the PNG keeps
-    // that alpha so the export matches the SVG and composites onto any backdrop.
-    ctx.drawImage(img, 0, 0, pxWidth * scale, pxHeight * scale);
-    URL.revokeObjectURL(url);
-    try {
-      await drawStampOnCanvas(ctx, canvas.width, pxHeight * scale, m, scale);
-    } catch {
-      // A failed stamp must not cost the user their export.
-    }
-    canvas.toBlob((blob) => downloadBlob(blob, "diagram.png"));
-  };
-  img.src = url;
-});
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = async () => {
+      const scale = 2; // export at 2x for crispness
+      const m = stampMetrics(pxWidth);
+      const canvas = document.createElement("canvas");
+      canvas.width = pxWidth * scale;
+      canvas.height = (pxHeight + m.bandHeight) * scale;
+      const ctx = canvas.getContext("2d");
+      // Left unfilled on purpose: a fresh canvas is transparent, and the PNG keeps
+      // that alpha so the export matches the SVG and composites onto any backdrop.
+      ctx.drawImage(img, 0, 0, pxWidth * scale, pxHeight * scale);
+      URL.revokeObjectURL(url);
+      try {
+        await drawStampOnCanvas(ctx, canvas.width, pxHeight * scale, m, scale);
+      } catch {
+        // A failed stamp must not cost the user their export.
+      }
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("PNG encode failed"))));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not rasterize the diagram"));
+    };
+    img.src = url;
+  });
+}
 
 // Draws the attribution into the band reserved below the rasterized diagram.
 async function drawStampOnCanvas(ctx, canvasWidth, diagramBottom, m, scale) {
@@ -1086,6 +1172,119 @@ function downloadBlob(blob, filename) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+// --- Export menu -----------------------------------------------------------
+// The four export actions (download/copy x SVG/PNG) live behind one header
+// button. Each returns the toast text to confirm with, or throws a message to
+// show instead — the dispatcher below is the only place that touches the UI.
+
+const exportMenuEl = document.getElementById("export-menu");
+const exportTriggerEl = document.getElementById("export-trigger");
+const toastEl = document.getElementById("toast");
+
+let toastTimer;
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2000);
+}
+
+// Export always acts on Preview, so every action starts here. A failed render
+// keeps the previous Preview, so the only way to have no SVG is a first render
+// that never succeeded — the diagram has to be fixed before anything can export.
+function requirePreview() {
+  const svg = previewEl.querySelector("svg");
+  if (!svg) throw new Error("Nothing to export — fix the diagram first");
+  return svg;
+}
+
+// Clipboard writes need a secure context; fall back to the legacy copy path so
+// the app still works when opened straight off the filesystem.
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  ta.remove();
+  if (!ok) throw new Error("Clipboard unavailable in this browser");
+}
+
+const EXPORT_ACTIONS = {
+  "download-svg": async () => {
+    requirePreview();
+    const markup = await buildExportSvgMarkup();
+    downloadBlob(new Blob([markup], { type: "image/svg+xml;charset=utf-8" }), "diagram.svg");
+    return "SVG downloaded";
+  },
+  "download-png": async () => {
+    requirePreview();
+    downloadBlob(await buildExportPngBlob(), "diagram.png");
+    return "PNG downloaded";
+  },
+  "copy-svg": async () => {
+    requirePreview();
+    await copyText(await buildExportSvgMarkup());
+    return "SVG markup copied";
+  },
+  "copy-png": async () => {
+    requirePreview();
+    if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+      throw new Error("This browser can't copy images — use Download PNG");
+    }
+    // Hand ClipboardItem the pending blob rather than awaiting it first: Safari
+    // only honors a clipboard write issued synchronously within the click.
+    const item = new ClipboardItem({ "image/png": buildExportPngBlob() });
+    await navigator.clipboard.write([item]);
+    return "PNG copied";
+  },
+};
+
+async function runExport(name) {
+  try {
+    showToast(await EXPORT_ACTIONS[name]());
+  } catch (err) {
+    showToast(err?.message || "Export failed");
+  }
+}
+
+function setExportMenuOpen(open) {
+  exportMenuEl.classList.toggle("open", open);
+  exportTriggerEl.setAttribute("aria-expanded", String(open));
+}
+
+exportTriggerEl.addEventListener("click", () => {
+  setExportMenuOpen(!exportMenuEl.classList.contains("open"));
+});
+
+exportMenuEl.querySelectorAll("[data-export]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setExportMenuOpen(false);
+    runExport(btn.dataset.export);
+  });
+});
+
+document.addEventListener("click", (e) => {
+  if (!exportMenuEl.contains(e.target)) setExportMenuOpen(false);
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && exportMenuEl.classList.contains("open")) {
+    setExportMenuOpen(false);
+    exportTriggerEl.focus();
+  }
+});
+
+document.getElementById("svg-shortcut").textContent =
+  navigator.platform.toLowerCase().includes("mac") ? "\u2318S" : "Ctrl+S";
 
 // restore autosaved source, else load a default example
 const saved = localStorage.getItem(STORAGE_KEY);
