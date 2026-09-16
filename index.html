@@ -196,6 +196,7 @@
   .preview-wrap[data-preview="dark"] { background: #16161a; }
   .preview-wrap { cursor: grab; }
   .preview-wrap.panning { cursor: grabbing; }
+  .preview-wrap.presenting { cursor: default; }
   .preview-wrap.panning #preview { user-select: none; }
   #preview {
     padding: 16px;
@@ -248,6 +249,15 @@
     color: var(--muted);
     min-width: 36px;
     text-align: center;
+  }
+  .preview-wrap.presenting {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    padding: 0;
+  }
+  @media (hover: none) {
+    #present { display: none; }
   }
   .mobile-tabs { display: none; }
   @media (max-width: 720px) {
@@ -379,6 +389,7 @@
       <button type="button" role="menuitem" data-export="copy-png">PNG image</button>
     </div>
   </div>
+  <button id="present" type="button">Present</button>
 </header>
 <div class="mobile-tabs">
   <button type="button" class="tab-btn active" data-pane="source">Source</button>
@@ -504,6 +515,12 @@ const resetColorsEl = document.getElementById("reset-colors");
 const previewWrapEl = document.querySelector(".preview-wrap");
 const previewBgSelectEl = document.getElementById("preview-bg-select");
 const previewStatusEl = document.getElementById("preview-status");
+const presentBtn = document.getElementById("present");
+
+let presenting = false;
+let savedZoomLevel = null;
+let savedTabPane = null;
+let savedPan = null;
 
 const DEFAULT_CUSTOM_COLORS = {
   primary: "#2f6fed",
@@ -662,6 +679,7 @@ async function render() {
     previewEl.classList.remove("has-error");
     errorEl.classList.remove("show", "jumpable");
     previewStatusEl.textContent = "";
+    updatePresentAvailability();
     return;
   }
   previewStatusEl.textContent = "Rendering…";
@@ -691,6 +709,7 @@ async function render() {
     document.querySelectorAll('[id^="dqueue-"], [id^="d' + id + '"]').forEach(n => n.remove());
   } finally {
     previewStatusEl.textContent = "";
+    updatePresentAvailability();
   }
 }
 
@@ -748,17 +767,33 @@ function applyZoom() {
     if (!svg.dataset.baseWidth) {
       // measure while still constrained by max-width:100%, so 100% zoom == fit-to-pane
       const rect = svg.getBoundingClientRect();
-      svg.dataset.baseWidth = rect.width;
-      svg.dataset.baseHeight = rect.height;
-      svg.style.maxWidth = "none";
+      // a hidden preview pane (single-pane layout on the Source tab) measures 0x0;
+      // skip caching so the ResizeObserver below can measure once it is shown
+      if (rect.width && rect.height) {
+        svg.dataset.baseWidth = rect.width;
+        svg.dataset.baseHeight = rect.height;
+        svg.style.maxWidth = "none";
+      }
     }
-    svg.style.width = (parseFloat(svg.dataset.baseWidth) * zoomLevel) + "px";
-    svg.style.height = (parseFloat(svg.dataset.baseHeight) * zoomLevel) + "px";
+    if (svg.dataset.baseWidth) {
+      svg.style.width = (parseFloat(svg.dataset.baseWidth) * zoomLevel) + "px";
+      svg.style.height = (parseFloat(svg.dataset.baseHeight) * zoomLevel) + "px";
+    }
   }
   previewEl.classList.toggle("zoomed", zoomLevel !== 1);
   zoomLevelEl.textContent = Math.round(zoomLevel * 100) + "%";
   clampPan();
 }
+// Measure a diagram that rendered while the preview pane was hidden as soon as
+// the pane gets a real size (tab switch, or widening past the breakpoint).
+new ResizeObserver(() => {
+  const svg = previewEl.querySelector("svg");
+  if (svg && !svg.dataset.baseWidth) {
+    applyZoom();
+    fitPresentationSvg();
+  }
+}).observe(previewWrapEl);
+
 document.getElementById("zoom-in").addEventListener("click", () => {
   zoomLevel = Math.min(3, +(zoomLevel + 0.15).toFixed(2));
   applyZoom();
@@ -773,6 +808,7 @@ document.getElementById("zoom-reset").addEventListener("click", () => {
   applyZoom();
 });
 previewWrapEl.addEventListener("wheel", (e) => {
+  if (presenting) return; // zoom and pan are disabled while presenting
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) {
     zoomLevel = Math.min(3, Math.max(0.25, +(zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)));
@@ -782,6 +818,152 @@ previewWrapEl.addEventListener("wheel", (e) => {
   // the pane clips rather than scrolls, so the wheel pans the diagram instead
   panBy(-e.deltaX, -e.deltaY);
 }, { passive: false });
+
+// --- Presentation mode -------------------------------------------------
+// Fullscreens .preview-wrap (via the Fullscreen API, falling back to a CSS
+// fixed-viewport overlay if the browser rejects the request) and fits the
+// diagram to whatever viewport results. No highlighting/stepping here — see
+// the presentation-mode spec for later slices.
+
+function canPresent() {
+  return !!previewEl.querySelector("svg") && !previewEl.classList.contains("has-error");
+}
+
+function updatePresentAvailability() {
+  const ok = canPresent();
+  presentBtn.disabled = !ok;
+  presentBtn.title = ok ? "F present · Esc exit" : "Fix the error to present";
+}
+
+function setZoomControlsDisabled(disabled) {
+  document.getElementById("zoom-in").disabled = disabled;
+  document.getElementById("zoom-out").disabled = disabled;
+  document.getElementById("zoom-reset").disabled = disabled;
+}
+
+// Fits the cached (aspect-correct) base size of the current svg against the
+// current .preview-wrap box — the fullscreen viewport, not the pane width
+// applyZoom() would otherwise use.
+function fitPresentationSvg() {
+  if (!presenting) return;
+  const svg = previewEl.querySelector("svg");
+  if (!svg) return;
+  const baseW = parseFloat(svg.dataset.baseWidth);
+  const baseH = parseFloat(svg.dataset.baseHeight);
+  if (!baseW || !baseH) return;
+  const PAD = 32; // matches #preview's 16px horizontal/vertical padding
+  const availW = Math.max(1, previewWrapEl.clientWidth - PAD);
+  const availH = Math.max(1, previewWrapEl.clientHeight - PAD);
+  const scale = Math.min(availW / baseW, availH / baseH);
+  svg.style.width = (baseW * scale) + "px";
+  svg.style.height = (baseH * scale) + "px";
+}
+
+// Single source of truth for leaving presentation mode, regardless of how it
+// was triggered (button/Esc, or the browser's own fullscreen-exit UI, which
+// may not deliver a keydown at all).
+function teardownPresentation() {
+  if (!presenting) return;
+  presenting = false;
+  window.removeEventListener("resize", fitPresentationSvg);
+  previewWrapEl.classList.remove("presenting");
+  const svg = previewEl.querySelector("svg");
+  if (svg) {
+    // Clear the sizing this feature applied so applyZoom() re-measures a
+    // fresh pane-relative base size instead of reusing presentation-time
+    // (fullscreen-relative) numbers.
+    svg.style.width = "";
+    svg.style.height = "";
+    svg.style.maxWidth = "";
+    delete svg.dataset.baseWidth;
+    delete svg.dataset.baseHeight;
+  }
+  if (savedZoomLevel != null) {
+    zoomLevel = savedZoomLevel;
+    savedZoomLevel = null;
+  }
+  if (savedPan) {
+    panX = savedPan.x;
+    panY = savedPan.y;
+    savedPan = null;
+    applyPan();
+  }
+  if (savedTabPane) {
+    document.querySelector('.tab-btn[data-pane="' + savedTabPane + '"]').click();
+    savedTabPane = null;
+  }
+  setZoomControlsDisabled(false);
+  applyZoom();
+  updatePresentAvailability();
+}
+
+async function enterPresentation() {
+  if (presenting || !canPresent()) return;
+  presenting = true;
+  savedZoomLevel = zoomLevel;
+  savedPan = { x: panX, y: panY };
+  resetPan();
+  // Blur so keystrokes can't reach the hidden textarea and trigger a render
+  // (which would replace the svg mid-presentation).
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  // In the single-pane layout the Preview pane may be display:none, which would
+  // hide the fixed overlay too; show it, and remember the tab to restore on exit.
+  const previewPane = document.querySelector('.pane[data-pane="preview"]');
+  const activeTab = document.querySelector(".tab-btn.active");
+  if (activeTab && getComputedStyle(previewPane).display === "none") {
+    savedTabPane = activeTab.dataset.pane;
+    document.querySelector('.tab-btn[data-pane="preview"]').click();
+    applyZoom(); // measure now that the pane is visible
+  }
+  previewWrapEl.classList.add("presenting");
+  setZoomControlsDisabled(true);
+  fitPresentationSvg();
+  window.addEventListener("resize", fitPresentationSvg);
+  if (typeof previewWrapEl.requestFullscreen === "function") {
+    try {
+      await previewWrapEl.requestFullscreen();
+      fitPresentationSvg(); // viewport can settle slightly differently once native fullscreen engages
+    } catch {
+      // Rejected (e.g. headless/blocked) — the CSS overlay applied above is the fallback.
+    }
+  }
+  updatePresentAvailability();
+}
+
+function exitPresentation() {
+  if (!presenting) return;
+  if (document.fullscreenElement === previewWrapEl) {
+    // Teardown happens in the fullscreenchange handler below once the
+    // browser actually leaves fullscreen.
+    document.exitFullscreen().catch(() => {});
+  } else {
+    teardownPresentation();
+  }
+}
+
+document.addEventListener("fullscreenchange", () => {
+  if (presenting && document.fullscreenElement !== previewWrapEl) {
+    teardownPresentation();
+  }
+});
+
+presentBtn.addEventListener("click", () => enterPresentation());
+
+document.addEventListener("keydown", (e) => {
+  if (presenting) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      exitPresentation();
+    }
+    return;
+  }
+  if (e.key.toLowerCase() !== "f" || e.metaKey || e.ctrlKey || e.altKey) return;
+  const active = document.activeElement;
+  const tag = active && active.tagName ? active.tagName.toLowerCase() : "";
+  if (tag === "textarea" || tag === "input" || tag === "select") return;
+  e.preventDefault();
+  enterPresentation();
+});
 
 // Drag-to-pan. The pane clips instead of scrolling, and the diagram is moved by
 // translating #preview (never the <svg> itself — exports read the svg's inline
@@ -825,6 +1007,7 @@ function panBy(dx, dy) {
 previewWrapEl.addEventListener("pointerdown", (e) => {
   // left button only, and never steal a click meant for selecting text/links
   if (e.button !== 0) return;
+  if (presenting) return; // zoom and pan are disabled while presenting
   e.preventDefault();
   let lastX = e.clientX, lastY = e.clientY;
   previewWrapEl.classList.add("panning");

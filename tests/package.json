@@ -1,0 +1,12 @@
+{
+  "name": "qack-maid-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Dev-only Playwright e2e harness for qack-maid. Not part of the deployed app — see docs/adr/0004-dev-only-e2e-tooling.md.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
