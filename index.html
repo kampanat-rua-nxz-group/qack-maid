@@ -256,6 +256,26 @@
     z-index: 9999;
     padding: 0;
   }
+  .preview-wrap.presenting.idle {
+    cursor: none;
+  }
+  #presentation-exit {
+    display: none;
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .preview-wrap.presenting #presentation-exit {
+    display: inline-flex;
+  }
+  .preview-wrap.presenting.chrome-visible #presentation-exit {
+    opacity: 1;
+    pointer-events: auto;
+  }
   @media (hover: none) {
     #present { display: none; }
   }
@@ -406,6 +426,7 @@
     <div class="preview-wrap">
       <div id="error-banner"></div>
       <div id="preview"></div>
+      <button id="presentation-exit" type="button" title="Esc">Exit presentation</button>
     </div>
     <div class="zoom-controls">
       <button id="zoom-out" type="button" title="Zoom out">&minus;</button>
@@ -516,6 +537,7 @@ const previewWrapEl = document.querySelector(".preview-wrap");
 const previewBgSelectEl = document.getElementById("preview-bg-select");
 const previewStatusEl = document.getElementById("preview-status");
 const presentBtn = document.getElementById("present");
+const presentationExitEl = document.getElementById("presentation-exit");
 
 let presenting = false;
 let savedZoomLevel = null;
@@ -737,6 +759,7 @@ sourceEl.addEventListener("input", () => {
 });
 
 document.addEventListener("keydown", (e) => {
+  if (presenting) return; // every app shortcut except arrows/Esc is suppressed while presenting
   const mod = e.metaKey || e.ctrlKey;
   if (!mod) return;
   if (e.key === "Enter") {
@@ -825,6 +848,29 @@ previewWrapEl.addEventListener("wheel", (e) => {
 // diagram to whatever viewport results. No highlighting/stepping here — see
 // the presentation-mode spec for later slices.
 
+// Idle-driven chrome: the exit control and OS cursor stay visible on mouse
+// move, then fade after ~2s of no movement. One timer, reset on every move.
+const PRESENTATION_IDLE_MS = 2000;
+let presentationIdleTimer = null;
+
+function showPresentationChrome() {
+  previewWrapEl.classList.add("chrome-visible");
+  previewWrapEl.classList.remove("idle");
+}
+
+function schedulePresentationIdle() {
+  clearTimeout(presentationIdleTimer);
+  presentationIdleTimer = setTimeout(() => {
+    previewWrapEl.classList.remove("chrome-visible");
+    previewWrapEl.classList.add("idle");
+  }, PRESENTATION_IDLE_MS);
+}
+
+function handlePresentationMouseMove() {
+  showPresentationChrome();
+  schedulePresentationIdle();
+}
+
 function canPresent() {
   return !!previewEl.querySelector("svg") && !previewEl.classList.contains("has-error");
 }
@@ -866,7 +912,10 @@ function teardownPresentation() {
   if (!presenting) return;
   presenting = false;
   window.removeEventListener("resize", fitPresentationSvg);
-  previewWrapEl.classList.remove("presenting");
+  previewWrapEl.removeEventListener("mousemove", handlePresentationMouseMove);
+  clearTimeout(presentationIdleTimer);
+  presentationIdleTimer = null;
+  previewWrapEl.classList.remove("presenting", "chrome-visible", "idle");
   const svg = previewEl.querySelector("svg");
   if (svg) {
     // Clear the sizing this feature applied so applyZoom() re-measures a
@@ -919,6 +968,9 @@ async function enterPresentation() {
   setZoomControlsDisabled(true);
   fitPresentationSvg();
   window.addEventListener("resize", fitPresentationSvg);
+  previewWrapEl.addEventListener("mousemove", handlePresentationMouseMove);
+  showPresentationChrome();
+  schedulePresentationIdle();
   if (typeof previewWrapEl.requestFullscreen === "function") {
     try {
       await previewWrapEl.requestFullscreen();
@@ -948,6 +1000,7 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 presentBtn.addEventListener("click", () => enterPresentation());
+presentationExitEl.addEventListener("click", () => exitPresentation());
 
 document.addEventListener("keydown", (e) => {
   if (presenting) {
