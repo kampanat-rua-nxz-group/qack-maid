@@ -1013,6 +1013,28 @@ function onHighlightClick(e) {
   }
 }
 
+function pinHighlight(target) {
+  pinnedHighlight = target;
+  hoveredHighlight = null;
+  applySpotlight(target);
+}
+
+// Steps the pin through highlightNodes only, in DOM order (issue #4). A
+// pinned edge counts as "nothing pinned" — an edge is never a step
+// position, so stepping from one always lands on an end (first/last node)
+// rather than continuing from the edge's position in some combined order.
+function stepHighlight(direction) {
+  if (!highlightNodes.length) return; // unmatched diagram type: no-op
+  const currentIndex = pinnedHighlight ? highlightNodes.indexOf(pinnedHighlight) : -1;
+  let nextIndex;
+  if (currentIndex === -1) {
+    nextIndex = direction > 0 ? 0 : highlightNodes.length - 1;
+  } else {
+    nextIndex = Math.min(highlightNodes.length - 1, Math.max(0, currentIndex + direction));
+  }
+  pinHighlight(highlightNodes[nextIndex]);
+}
+
 function setupHighlight() {
   const svg = previewEl.querySelector("svg");
   if (!svg) return;
@@ -1185,6 +1207,12 @@ document.addEventListener("keydown", (e) => {
       } else {
         exitPresentation();
       }
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault(); // don't let the arrow scroll the preview
+      stepHighlight(1);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      stepHighlight(-1);
     }
     return;
   }
