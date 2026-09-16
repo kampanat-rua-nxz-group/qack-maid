@@ -440,6 +440,7 @@ const presentBtn = document.getElementById("present");
 
 let presenting = false;
 let savedZoomLevel = null;
+let savedTabPane = null;
 
 const DEFAULT_CUSTOM_COLORS = {
   primary: "#2f6fed",
@@ -795,6 +796,10 @@ function teardownPresentation() {
     zoomLevel = savedZoomLevel;
     savedZoomLevel = null;
   }
+  if (savedTabPane) {
+    document.querySelector('.tab-btn[data-pane="' + savedTabPane + '"]').click();
+    savedTabPane = null;
+  }
   setZoomControlsDisabled(false);
   applyZoom();
   updatePresentAvailability();
@@ -807,6 +812,15 @@ async function enterPresentation() {
   // Blur so keystrokes can't reach the hidden textarea and trigger a render
   // (which would replace the svg mid-presentation).
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  // In the single-pane layout the Preview pane may be display:none, which would
+  // hide the fixed overlay too; show it, and remember the tab to restore on exit.
+  const previewPane = document.querySelector('.pane[data-pane="preview"]');
+  const activeTab = document.querySelector(".tab-btn.active");
+  if (activeTab && getComputedStyle(previewPane).display === "none") {
+    savedTabPane = activeTab.dataset.pane;
+    document.querySelector('.tab-btn[data-pane="preview"]').click();
+    applyZoom(); // measure now that the pane is visible
+  }
   previewWrapEl.classList.add("presenting");
   setZoomControlsDisabled(true);
   fitPresentationSvg();

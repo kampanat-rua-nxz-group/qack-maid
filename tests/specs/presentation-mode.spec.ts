@@ -202,3 +202,24 @@ test.describe("preview sizing when the preview pane starts hidden", () => {
     expect(box && box.height).toBeGreaterThan(50);
   });
 });
+
+test.describe("presenting from the single-pane layout", () => {
+  test("F on the Source tab shows the fitted diagram, and exit returns to Source", async ({ page }) => {
+    await forceFullscreenFallback(page);
+    await page.setViewportSize({ width: 600, height: 800 });
+    await page.goto("/index.html");
+    await page.waitForTimeout(400);
+    await expect(page.locator('.tab-btn[data-pane="source"]')).toHaveClass(/active/);
+
+    await page.locator("body").press("f");
+    await expect(page.locator(".preview-wrap")).toHaveClass(/presenting/);
+    const box = await page.locator("#preview svg").boundingBox();
+    expect(box && box.width).toBeGreaterThan(50);
+    expect(box && box.height).toBeGreaterThan(50);
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".preview-wrap")).not.toHaveClass(/presenting/);
+    await expect(page.locator('.tab-btn[data-pane="source"]')).toHaveClass(/active/);
+    await expect(page.locator('.pane[data-pane="source"]')).toHaveClass(/active-pane/);
+  });
+});
