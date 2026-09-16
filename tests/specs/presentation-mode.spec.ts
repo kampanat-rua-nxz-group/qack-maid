@@ -223,3 +223,44 @@ test.describe("presenting from the single-pane layout", () => {
     await expect(page.locator('.pane[data-pane="source"]')).toHaveClass(/active-pane/);
   });
 });
+
+test.describe("presentation mode with drag-to-pan", () => {
+  test("a panned diagram is fitted in view, cannot be dragged while presenting, and pan is restored on exit", async ({ page }) => {
+    await forceFullscreenFallback(page);
+    await page.goto("/index.html");
+    await expect(page.locator("#preview svg")).toBeVisible();
+
+    const wrap = page.locator(".preview-wrap");
+    const wb = await wrap.boundingBox();
+    const cx = wb!.x + wb!.width / 2, cy = wb!.y + wb!.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + 120, cy + 80, { steps: 5 });
+    await page.mouse.up();
+    const pannedTransform = await page.locator("#preview").evaluate((el) => (el as HTMLElement).style.transform);
+    expect(pannedTransform).not.toBe("");
+
+    await page.locator("#present").click();
+    await expect(wrap).toHaveClass(/presenting/);
+    expect(await page.locator("#preview").evaluate((el) => (el as HTMLElement).style.transform)).toBe("");
+    const vp = page.viewportSize()!;
+    const before = await page.locator("#preview svg").boundingBox();
+    expect(before!.x).toBeGreaterThanOrEqual(0);
+    expect(before!.y).toBeGreaterThanOrEqual(0);
+    expect(before!.x + before!.width).toBeLessThanOrEqual(vp.width + 1);
+    expect(before!.y + before!.height).toBeLessThanOrEqual(vp.height + 1);
+
+    await page.mouse.move(vp.width / 2, vp.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(vp.width / 2 + 150, vp.height / 2 + 100, { steps: 5 });
+    await page.mouse.up();
+    await page.mouse.wheel(0, 200);
+    const after = await page.locator("#preview svg").boundingBox();
+    expect(after!.x).toBeCloseTo(before!.x, 0);
+    expect(after!.y).toBeCloseTo(before!.y, 0);
+
+    await page.keyboard.press("Escape");
+    await expect(wrap).not.toHaveClass(/presenting/);
+    expect(await page.locator("#preview").evaluate((el) => (el as HTMLElement).style.transform)).toBe(pannedTransform);
+  });
+});

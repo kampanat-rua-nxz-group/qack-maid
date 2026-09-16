@@ -13,7 +13,7 @@ Offline Mermaid diagram renderer. Paste Mermaid source, get a live preview, expo
 - Diagram theme picker (auto/default/dark/forest/neutral) plus a custom mode with color pickers
 - Independent preview background control (auto/light/dark) to check a diagram against either backdrop
 - Format button normalizes indentation and strips blank lines
-- Export the rendered diagram as SVG or PNG
+- Export the rendered diagram as SVG or PNG — download it as a file or copy it straight to the clipboard, all from one Export menu
 - Autosaves your source and theme/background preferences to `localStorage` — nothing is sent anywhere
 - Auto light/dark page theme via `prefers-color-scheme`
 - Built-in examples: sequence, ER, flowchart, class, gantt, state diagrams
