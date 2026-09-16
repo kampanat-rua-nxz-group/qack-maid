@@ -259,6 +259,22 @@
   .preview-wrap.presenting.idle {
     cursor: none;
   }
+  /* Spotlight (issue #3): dim every highlightable element except the pinned
+     or hovered one, and outline that one. Hit-area clones stay invisible
+     regardless of dim/focus state. */
+  .presentation-dim {
+    opacity: 0.25;
+  }
+  .presentation-focus {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .presentation-hit-area {
+    stroke: transparent;
+    stroke-width: 12;
+    fill: none;
+    pointer-events: stroke;
+  }
   #presentation-exit {
     display: none;
     position: fixed;
@@ -905,12 +921,167 @@ function fitPresentationSvg() {
   svg.style.height = (baseH * scale) + "px";
 }
 
+// --- Spotlight highlighting (issue #3) ----------------------------------
+// One selector map keyed by the rendered SVG's `aria-roledescription`, so a
+// future diagram type (sequence — issue #5) is just another entry. Diagram
+// types with no entry get no highlight and no errors (spec: "Out of scope").
+//
+// Verified against the built-in flowchart example's rendered SVG
+// (Mermaid 11.16.1, `aria-roledescription="flowchart-v2"`):
+//   - nodes: `.nodes > g.node`      (one <g> per box, e.g. id="…-flowchart-A-0")
+//   - edges: `.edgePaths > path`    (one <path> per line, e.g. id="…-L_A_B_0")
+const PRESENTATION_HIGHLIGHT_MAP = {
+  "flowchart-v2": {
+    nodeSelector: ".nodes > g.node",
+    edgeSelector: ".edgePaths > path",
+  },
+};
+
+let highlightSvg = null;
+let highlightNodes = [];
+let highlightEdges = []; // the real (thin) edge paths — never the hit-area clones
+let highlightHitAreaByEdge = new WeakMap(); // real edge path -> its hit-area clone
+let highlightEdgeByHitArea = new WeakMap(); // hit-area clone -> its real edge path
+let highlightOriginalClass = new WeakMap(); // node/edge -> its exact pre-presentation class attribute
+let pinnedHighlight = null; // the currently pinned node <g> or edge <path>
+let hoveredHighlight = null; // the currently hovered node <g> or edge <path>
+
+function resolveHighlightTarget(eventTarget) {
+  if (!eventTarget || typeof eventTarget.closest !== "function") return null;
+  const hitArea = eventTarget.closest(".presentation-hit-area");
+  if (hitArea) return highlightEdgeByHitArea.get(hitArea) || null;
+  for (const node of highlightNodes) {
+    if (node === eventTarget || node.contains(eventTarget)) return node;
+  }
+  return null;
+}
+
+function allHighlightables() {
+  return highlightNodes.concat(highlightEdges);
+}
+
+function applySpotlight(target) {
+  allHighlightables().forEach((el) => {
+    if (el === target) {
+      el.classList.remove("presentation-dim");
+      el.classList.add("presentation-focus");
+    } else {
+      el.classList.add("presentation-dim");
+      el.classList.remove("presentation-focus");
+    }
+  });
+}
+
+function clearSpotlight() {
+  allHighlightables().forEach((el) => {
+    el.classList.remove("presentation-dim", "presentation-focus");
+  });
+}
+
+function unpinHighlight() {
+  pinnedHighlight = null;
+  hoveredHighlight = null;
+  clearSpotlight();
+}
+
+function onHighlightPointerOver(e) {
+  if (pinnedHighlight) return; // pinned beats hover
+  const target = resolveHighlightTarget(e.target);
+  if (!target || target === hoveredHighlight) return;
+  hoveredHighlight = target;
+  applySpotlight(target);
+}
+
+function onHighlightPointerOut(e) {
+  if (pinnedHighlight) return;
+  if (!hoveredHighlight) return;
+  if (e.relatedTarget && hoveredHighlight.contains(e.relatedTarget)) return;
+  const stillOver = resolveHighlightTarget(e.relatedTarget);
+  if (stillOver === hoveredHighlight) return;
+  hoveredHighlight = null;
+  clearSpotlight();
+}
+
+function onHighlightClick(e) {
+  const target = resolveHighlightTarget(e.target);
+  if (target) {
+    pinnedHighlight = target;
+    hoveredHighlight = null;
+    applySpotlight(target);
+  } else {
+    unpinHighlight();
+  }
+}
+
+function setupHighlight() {
+  const svg = previewEl.querySelector("svg");
+  if (!svg) return;
+  const kind = svg.getAttribute("aria-roledescription") || "";
+  const map = PRESENTATION_HIGHLIGHT_MAP[kind];
+  if (!map) return; // unmatched diagram type: no highlight, no error
+  highlightSvg = svg;
+  highlightNodes = Array.from(svg.querySelectorAll(map.nodeSelector));
+  highlightEdges = Array.from(svg.querySelectorAll(map.edgeSelector));
+  highlightHitAreaByEdge = new WeakMap();
+  highlightEdgeByHitArea = new WeakMap();
+  highlightOriginalClass = new WeakMap();
+  highlightNodes.concat(highlightEdges).forEach((el) => {
+    highlightOriginalClass.set(el, el.getAttribute("class") || "");
+  });
+  highlightEdges.forEach((edge) => {
+    // Shallow clone (paths have no children); drop the original's id/markers
+    // and — critically — its Mermaid classes, whose id-scoped stylesheet
+    // rules (e.g. `#graph-2 .edge-thickness-normal{stroke-width:1px}`) would
+    // otherwise outrank the plain `.presentation-hit-area` class selector.
+    const hitArea = edge.cloneNode(false);
+    hitArea.removeAttribute("id");
+    hitArea.removeAttribute("marker-end");
+    hitArea.removeAttribute("marker-start");
+    hitArea.removeAttribute("style");
+    hitArea.setAttribute("class", "presentation-hit-area");
+    edge.insertAdjacentElement("afterend", hitArea);
+    highlightHitAreaByEdge.set(edge, hitArea);
+    highlightEdgeByHitArea.set(hitArea, edge);
+  });
+  previewEl.addEventListener("pointerover", onHighlightPointerOver);
+  previewEl.addEventListener("pointerout", onHighlightPointerOut);
+  previewEl.addEventListener("click", onHighlightClick);
+}
+
+function teardownHighlight() {
+  if (!highlightSvg) return;
+  previewEl.removeEventListener("pointerover", onHighlightPointerOver);
+  previewEl.removeEventListener("pointerout", onHighlightPointerOut);
+  previewEl.removeEventListener("click", onHighlightClick);
+  // Restore each element's exact original `class` attribute string rather
+  // than classList.remove(): DOMTokenList re-serializes (and can dedupe) the
+  // whole attribute on any mutation, which would leave the SVG byte-different
+  // from a pre-presentation export even with no dim/focus class left on it.
+  allHighlightables().forEach((el) => {
+    const original = highlightOriginalClass.get(el);
+    if (original !== undefined) el.setAttribute("class", original);
+  });
+  highlightEdges.forEach((edge) => {
+    const hitArea = highlightHitAreaByEdge.get(edge);
+    if (hitArea && hitArea.parentNode) hitArea.parentNode.removeChild(hitArea);
+  });
+  highlightSvg = null;
+  highlightNodes = [];
+  highlightEdges = [];
+  highlightHitAreaByEdge = new WeakMap();
+  highlightEdgeByHitArea = new WeakMap();
+  highlightOriginalClass = new WeakMap();
+  pinnedHighlight = null;
+  hoveredHighlight = null;
+}
+
 // Single source of truth for leaving presentation mode, regardless of how it
 // was triggered (button/Esc, or the browser's own fullscreen-exit UI, which
 // may not deliver a keydown at all).
 function teardownPresentation() {
   if (!presenting) return;
   presenting = false;
+  teardownHighlight();
   window.removeEventListener("resize", fitPresentationSvg);
   previewWrapEl.removeEventListener("mousemove", handlePresentationMouseMove);
   clearTimeout(presentationIdleTimer);
@@ -967,6 +1138,7 @@ async function enterPresentation() {
   previewWrapEl.classList.add("presenting");
   setZoomControlsDisabled(true);
   fitPresentationSvg();
+  setupHighlight();
   window.addEventListener("resize", fitPresentationSvg);
   previewWrapEl.addEventListener("mousemove", handlePresentationMouseMove);
   showPresentationChrome();
@@ -1006,7 +1178,13 @@ document.addEventListener("keydown", (e) => {
   if (presenting) {
     if (e.key === "Escape") {
       e.preventDefault();
-      exitPresentation();
+      // Esc while pinned unpins only; Esc with nothing pinned exits (owner
+      // decision 2026-09-16, presentation-mode spec).
+      if (pinnedHighlight) {
+        unpinHighlight();
+      } else {
+        exitPresentation();
+      }
     }
     return;
   }
