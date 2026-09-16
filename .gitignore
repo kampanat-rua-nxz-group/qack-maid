@@ -1,0 +1,6 @@
+# Dev-only e2e tooling (see docs/adr/0004-dev-only-e2e-tooling.md) — never part
+# of the deployed static artifact.
+tests/node_modules/
+tests/test-results/
+tests/playwright-report/
+tests/.cache/
