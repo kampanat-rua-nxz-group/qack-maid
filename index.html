@@ -686,16 +686,32 @@ function applyZoom() {
     if (!svg.dataset.baseWidth) {
       // measure while still constrained by max-width:100%, so 100% zoom == fit-to-pane
       const rect = svg.getBoundingClientRect();
-      svg.dataset.baseWidth = rect.width;
-      svg.dataset.baseHeight = rect.height;
-      svg.style.maxWidth = "none";
+      // a hidden preview pane (single-pane layout on the Source tab) measures 0x0;
+      // skip caching so the ResizeObserver below can measure once it is shown
+      if (rect.width && rect.height) {
+        svg.dataset.baseWidth = rect.width;
+        svg.dataset.baseHeight = rect.height;
+        svg.style.maxWidth = "none";
+      }
     }
-    svg.style.width = (parseFloat(svg.dataset.baseWidth) * zoomLevel) + "px";
-    svg.style.height = (parseFloat(svg.dataset.baseHeight) * zoomLevel) + "px";
+    if (svg.dataset.baseWidth) {
+      svg.style.width = (parseFloat(svg.dataset.baseWidth) * zoomLevel) + "px";
+      svg.style.height = (parseFloat(svg.dataset.baseHeight) * zoomLevel) + "px";
+    }
   }
   previewEl.classList.toggle("zoomed", zoomLevel !== 1);
   zoomLevelEl.textContent = Math.round(zoomLevel * 100) + "%";
 }
+// Measure a diagram that rendered while the preview pane was hidden as soon as
+// the pane gets a real size (tab switch, or widening past the breakpoint).
+new ResizeObserver(() => {
+  const svg = previewEl.querySelector("svg");
+  if (svg && !svg.dataset.baseWidth) {
+    applyZoom();
+    fitPresentationSvg();
+  }
+}).observe(previewWrapEl);
+
 document.getElementById("zoom-in").addEventListener("click", () => {
   zoomLevel = Math.min(3, +(zoomLevel + 0.15).toFixed(2));
   applyZoom();

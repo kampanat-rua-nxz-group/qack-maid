@@ -178,3 +178,27 @@ test.describe("presentation mode", () => {
     await context.close();
   });
 });
+
+test.describe("preview sizing when the preview pane starts hidden", () => {
+  // Below 720px the app shows one pane at a time and loads on the Source tab,
+  // so the first render happens while the Preview pane is display:none.
+  test("diagram has a real size after switching to the Preview tab", async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 800 });
+    await page.goto("/index.html");
+    await page.waitForTimeout(400);
+    await page.click('.tab-btn[data-pane="preview"]');
+    const box = await page.locator("#preview svg").boundingBox();
+    expect(box && box.width).toBeGreaterThan(50);
+    expect(box && box.height).toBeGreaterThan(50);
+  });
+
+  test("diagram has a real size after widening past the single-pane breakpoint", async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 800 });
+    await page.goto("/index.html");
+    await page.waitForTimeout(400);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const box = await page.locator("#preview svg").boundingBox();
+    expect(box && box.width).toBeGreaterThan(50);
+    expect(box && box.height).toBeGreaterThan(50);
+  });
+});
