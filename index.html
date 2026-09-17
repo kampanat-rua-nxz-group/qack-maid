@@ -1206,6 +1206,10 @@ function teardownPresentation() {
   clearTimeout(presentationIdleTimer);
   presentationIdleTimer = null;
   previewWrapEl.classList.remove("presenting", "chrome-visible", "idle", "can-pan", "panning");
+  // Issue #6 leak fix: a drag released outside #preview (see onUp above)
+  // otherwise leaves this stuck across sessions — never let it survive into
+  // the next presentation.
+  dragSuppressClick = false;
   presentationZoom = 1;
   const svg = previewEl.querySelector("svg");
   if (svg) {
@@ -1422,7 +1426,21 @@ previewWrapEl.addEventListener("pointerdown", (e) => {
     // A cancelled gesture (e.g. the pointer left the window) never dispatches
     // a click, so nothing will consume dragSuppressClick — clear it here to
     // avoid it wrongly swallowing the next unrelated click.
-    if (upEvent.type === "pointercancel") dragSuppressClick = false;
+    if (upEvent.type === "pointercancel") {
+      dragSuppressClick = false;
+    } else if (dragSuppressClick) {
+      // A genuine pointerup can also fail to deliver a click to
+      // onHighlightClick — e.g. the pointer went down on a node and came up
+      // outside #preview (the click's target becomes the nearest common
+      // ancestor of the down/up elements, which onHighlightClick isn't
+      // listening on). Clear defensively on the next tick: if a click *does*
+      // arrive first, it already consumed and cleared the flag, so this is a
+      // harmless no-op; if no click arrives, this is what prevents the flag
+      // from wrongly swallowing the next unrelated click.
+      setTimeout(() => {
+        dragSuppressClick = false;
+      }, 0);
+    }
   };
   previewWrapEl.addEventListener("pointermove", onMove);
   previewWrapEl.addEventListener("pointerup", onUp);

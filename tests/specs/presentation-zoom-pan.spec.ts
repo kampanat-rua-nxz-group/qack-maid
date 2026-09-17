@@ -287,3 +287,109 @@ test.describe("presentation mode — pan (AC 13)", () => {
     await expect(nodeA).toHaveClass(/presentation-focus/);
   });
 });
+
+// Regression coverage for the `dragSuppressClick` leak: the flag is only
+// cleared by onHighlightClick consuming it or by pointercancel. If a drag's
+// pointerup lands outside #preview (the element onHighlightClick listens on)
+// — e.g. released past the diagram, in the empty space `.preview-wrap` still
+// covers — no click ever reaches onHighlightClick to consume the flag, so it
+// used to stay stuck and swallow the very next genuine click. Uses a wide/
+// short `flowchart LR` (same node ids as the default example) so a mild
+// zoom-in leaves a large, reliable empty gap below the diagram at the
+// standard 1280x720 viewport, without needing to drag far enough to disturb
+// panning invariants.
+test.describe("presentation mode — drag-release edge cases (issue #6 leak fix)", () => {
+  const wideFlowchartSource =
+    "flowchart LR\n    A[Start] --> B{Decision}\n    B -->|Yes| C[Do thing]\n    B -->|No| D[Skip]\n    C --> E[End]\n    D --> E";
+
+  test.beforeEach(async ({ page }) => {
+    await forceFullscreenFallback(page);
+    await page.goto("/index.html");
+    await expect(page.locator("#preview svg")).toBeVisible();
+    await page.fill("#source", wideFlowchartSource);
+    await page.waitForTimeout(400); // let the debounced (250ms) re-render land
+    await expect(page.locator("#preview svg")).toBeVisible();
+  });
+
+  test("a drag released outside #preview doesn't leave a stuck flag — the next click still pins", async ({ page }) => {
+    await enterPresentation(page);
+    await ctrlWheel(page, 1, -100); // mild zoom-in: overflows via width, big gap remains below
+    await expect(page.locator(".preview-wrap")).toHaveClass(/can-pan/);
+
+    const wrap = (await page.locator(".preview-wrap").boundingBox())!;
+    const preview = (await page.locator("#preview").boundingBox())!;
+    const nodeA = nodeLocator(page, "A");
+    const boxA = (await nodeA.boundingBox())!;
+    const cx = boxA.x + boxA.width / 2, cy = boxA.y + boxA.height / 2;
+    // Just past the diagram's bottom edge, still comfortably inside the wrap.
+    const releaseY = Math.min(preview.y + preview.height + 30, wrap.y + wrap.height - 5);
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy + 20, { steps: 4 }); // cross PAN_DRAG_THRESHOLD
+    await page.mouse.move(cx, releaseY, { steps: 8 }); // release beyond #preview's box
+    await page.mouse.up();
+    await page.waitForTimeout(100); // let the deferred clear (if any) run
+
+    // Still presenting — this drag must not have exited or pinned anything
+    // (move off any highlightable element first — a lingering hover at the
+    // release point would otherwise still show presentation-focus).
+    await expect(page.locator(".preview-wrap")).toHaveClass(/presenting/);
+    await page.mouse.move(10, 10);
+    await page.waitForTimeout(50);
+    expect(await page.locator(".presentation-focus").count()).toBe(0);
+
+    // Recentre (0 resets zoom+pan) so the dragged node is back in view, then
+    // issue a genuine, independent click on it.
+    await page.keyboard.press("0");
+    await page.waitForTimeout(50);
+    const freshBoxA = (await nodeA.boundingBox())!;
+    const fcx = freshBoxA.x + freshBoxA.width / 2, fcy = freshBoxA.y + freshBoxA.height / 2;
+    await page.mouse.move(fcx, fcy);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(50);
+
+    // Move off any highlightable element — a hover preview clears, but a real
+    // pin from this click would persist regardless of hover.
+    await page.mouse.move(10, 10);
+    await page.waitForTimeout(50);
+    await expect(nodeA).toHaveClass(/presentation-focus/);
+  });
+
+  test("a stuck flag from a drag never survives exiting and re-entering presentation", async ({ page }) => {
+    await enterPresentation(page);
+    await ctrlWheel(page, 1, -100);
+    await expect(page.locator(".preview-wrap")).toHaveClass(/can-pan/);
+
+    const wrap = (await page.locator(".preview-wrap").boundingBox())!;
+    const preview = (await page.locator("#preview").boundingBox())!;
+    const nodeA = nodeLocator(page, "A");
+    const boxA = (await nodeA.boundingBox())!;
+    const cx = boxA.x + boxA.width / 2, cy = boxA.y + boxA.height / 2;
+    const releaseY = Math.min(preview.y + preview.height + 30, wrap.y + wrap.height - 5);
+
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx, cy + 20, { steps: 4 });
+    await page.mouse.move(cx, releaseY, { steps: 8 });
+    await page.mouse.up();
+
+    // Exit immediately (no time given for any deferred clear) and re-enter —
+    // teardownPresentation() must reset the flag on its own.
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".preview-wrap")).not.toHaveClass(/presenting/);
+    await enterPresentation(page);
+
+    const freshNodeA = nodeLocator(page, "A");
+    const freshBoxA = (await freshNodeA.boundingBox())!;
+    const fcx = freshBoxA.x + freshBoxA.width / 2, fcy = freshBoxA.y + freshBoxA.height / 2;
+    await page.mouse.move(fcx, fcy);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.waitForTimeout(50);
+    await page.mouse.move(10, 10);
+    await page.waitForTimeout(50);
+    await expect(freshNodeA).toHaveClass(/presentation-focus/);
+  });
+});
