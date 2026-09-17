@@ -309,6 +309,15 @@
     color: #fff;
     border-color: var(--accent);
   }
+  .presentation-toolbar input[type="color"] {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+  }
   /* Owner decision (issue #7): while lasering, the OS cursor stays hidden
      over the diagram (the canvas dot replaces it) regardless of the idle
      timer, but the toolbar itself always shows the normal cursor so its
@@ -479,6 +488,7 @@
       <div id="presentation-toolbar" class="presentation-toolbar">
         <button id="tool-pointer" type="button" class="presentation-tool" aria-pressed="true" title="Pointer">Pointer</button>
         <button id="tool-laser" type="button" class="presentation-tool" aria-pressed="false" title="Laser">Laser</button>
+        <input id="laser-color" type="color" title="Laser color" aria-label="Laser color" value="#dc2626" />
         <button id="presentation-exit" type="button" title="Esc">Exit presentation</button>
       </div>
     </div>
@@ -595,6 +605,7 @@ const presentationExitEl = document.getElementById("presentation-exit");
 const presentationToolbarEl = document.getElementById("presentation-toolbar");
 const toolPointerEl = document.getElementById("tool-pointer");
 const toolLaserEl = document.getElementById("tool-laser");
+const laserColorEl = document.getElementById("laser-color");
 
 let presenting = false;
 // Issue #7: mouse-only tool switch, no keyboard shortcut. Always reset to
@@ -961,7 +972,7 @@ function pointNearPresentationToolbar(x, y) {
   );
 }
 
-function handlePresentationMouseMove(e) {
+function handlePresentationPointerMove(e) {
   if (presentationTool === "laser") {
     handleLaserPointerMove(e);
     if (pointNearPresentationToolbar(e.clientX, e.clientY)) {
@@ -980,14 +991,62 @@ function handlePresentationMouseMove(e) {
 // (AC 10, 15). Created on presentation enter, sized to the fullscreen
 // viewport (resized on every refit via fitPresentationSvg), and removed on
 // teardown along with its listeners and animation frame.
+//
+// The persistent dot (`laserDotPos`) and the fading trail (`laserTrailPoints`)
+// are tracked separately: mouse movement alone only ever moves the dot; a
+// trail sample is appended only while a left-button stroke is active. See
+// docs/specs/laser-pointer.md for the full behavior reference.
 const LASER_TRAIL_FADE_MS = 950; // ~1s, per spec assumption
-const LASER_DOT_RGB = "220, 38, 38"; // red, per spec assumption
+const LASER_COLOR_KEY = "qack-maid:laser-color";
+const LASER_COLOR_DEFAULT = "#dc2626";
+
+function isValidHexColor(v) {
+  return typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+}
+function hexToRgbTriplet(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+}
+function loadLaserColor() {
+  try {
+    const raw = localStorage.getItem(LASER_COLOR_KEY);
+    if (isValidHexColor(raw)) return raw;
+  } catch {}
+  return LASER_COLOR_DEFAULT;
+}
+function saveLaserColor(hex) {
+  try {
+    localStorage.setItem(LASER_COLOR_KEY, hex);
+  } catch {}
+}
+let laserColor = loadLaserColor();
+let laserColorRgb = hexToRgbTriplet(laserColor);
+laserColorEl.value = laserColor;
+laserColorEl.addEventListener("input", () => {
+  const v = laserColorEl.value;
+  if (!isValidHexColor(v)) return;
+  laserColor = v;
+  laserColorRgb = hexToRgbTriplet(v);
+  saveLaserColor(v);
+});
+// Keep the toolbar visible (and its idle timer paused) while the native
+// picker is being used, per the presentation-mode idle behavior.
+laserColorEl.addEventListener("focus", () => {
+  if (!presenting) return;
+  showPresentationChrome();
+  clearTimeout(presentationIdleTimer);
+});
+laserColorEl.addEventListener("blur", () => {
+  if (!presenting) return;
+  schedulePresentationIdle();
+});
+
 let laserCanvasEl = null;
 let laserCanvasCtx = null;
 let laserTrailPoints = []; // { x, y, t } in viewport (client) coordinates
-let laserVisible = true;
+let laserDotPos = null; // { x, y } in viewport coordinates; null hides the dot
+let laserStrokeActive = false; // true only between an eligible left-button press and its end
 let laserAnimHandle = null;
-let laserIdleTimer = null;
 
 function sizeLaserCanvas() {
   if (!laserCanvasEl) return;
@@ -1006,35 +1065,95 @@ function drawLaserFrame() {
   const now = performance.now();
   laserCanvasCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
   laserTrailPoints = laserTrailPoints.filter((p) => now - p.t < LASER_TRAIL_FADE_MS);
-  laserTrailPoints.forEach((p, i) => {
+  // Fading trail first, then the current dot on top at full opacity, so the
+  // dot never gets visually buried under a fresh trail sample at the same spot.
+  laserTrailPoints.forEach((p) => {
     const age = now - p.t;
     const alpha = Math.max(0, 1 - age / LASER_TRAIL_FADE_MS);
-    const isHead = i === laserTrailPoints.length - 1;
-    // Idle-hide (owner-confirmed): the current dot hides after ~2s idle and
-    // reappears on move, but older trail points keep fading on their own.
-    if (isHead && !laserVisible) return;
-    const radius = isHead ? 7 : 4;
     laserCanvasCtx.beginPath();
-    laserCanvasCtx.fillStyle = `rgba(${LASER_DOT_RGB}, ${alpha})`;
-    laserCanvasCtx.shadowColor = `rgba(${LASER_DOT_RGB}, ${Math.min(1, alpha + 0.2)})`;
+    laserCanvasCtx.fillStyle = `rgba(${laserColorRgb}, ${alpha})`;
+    laserCanvasCtx.shadowColor = `rgba(${laserColorRgb}, ${Math.min(1, alpha + 0.2)})`;
     laserCanvasCtx.shadowBlur = 14;
-    laserCanvasCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    laserCanvasCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
     laserCanvasCtx.fill();
   });
+  if (laserDotPos) {
+    laserCanvasCtx.beginPath();
+    laserCanvasCtx.fillStyle = `rgba(${laserColorRgb}, 1)`;
+    laserCanvasCtx.shadowColor = `rgba(${laserColorRgb}, 1)`;
+    laserCanvasCtx.shadowBlur = 14;
+    laserCanvasCtx.arc(laserDotPos.x, laserDotPos.y, 7, 0, Math.PI * 2);
+    laserCanvasCtx.fill();
+  }
   laserAnimHandle = requestAnimationFrame(drawLaserFrame);
 }
 
-function scheduleLaserIdle() {
-  clearTimeout(laserIdleTimer);
-  laserIdleTimer = setTimeout(() => {
-    laserVisible = false;
-  }, PRESENTATION_IDLE_MS);
+// Eligible area: inside the presentation wrapper and outside the toolbar's
+// own rectangle. The toolbar's separate 24px reveal padding
+// (`pointNearPresentationToolbar`) only controls when the chrome reappears —
+// it is still eligible ground for the dot, so it isn't reused as this
+// boundary.
+function isInsidePresentationWrapper(x, y) {
+  const rect = previewWrapEl.getBoundingClientRect();
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+function pointInPresentationToolbar(x, y) {
+  const rect = presentationToolbarEl.getBoundingClientRect();
+  if (!rect.width && !rect.height) return false;
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+function isLaserEligible(x, y) {
+  return isInsidePresentationWrapper(x, y) && !pointInPresentationToolbar(x, y);
+}
+
+function endLaserStroke() {
+  laserStrokeActive = false;
+}
+
+// Toolbar entry, presentation-area exit, window blur, and pointer
+// cancellation all funnel through this: end the stroke and hide the dot.
+// Existing trail samples are left alone so they keep fading on their own.
+function interruptLaserGesture() {
+  endLaserStroke();
+  laserDotPos = null;
 }
 
 function handleLaserPointerMove(e) {
+  if (e.pointerType !== "mouse") return; // touch/pen are outside this change
+  const x = e.clientX, y = e.clientY;
+  if (!isLaserEligible(x, y)) {
+    interruptLaserGesture();
+    return;
+  }
+  laserDotPos = { x, y };
+  if (laserStrokeActive) {
+    if (e.buttons & 1) {
+      laserTrailPoints.push({ x, y, t: performance.now() });
+    } else {
+      // Defensive: a release that never reached handleLaserPointerUp (e.g. it
+      // happened before listeners were attached) still ends the stroke.
+      endLaserStroke();
+    }
+  }
+}
+
+function handleLaserPointerDown(e) {
+  if (presentationTool !== "laser" || e.pointerType !== "mouse" || e.button !== 0) return;
+  if (!isLaserEligible(e.clientX, e.clientY)) return;
+  e.preventDefault(); // avoid text selection while dragging a trail
+  laserStrokeActive = true;
+  laserDotPos = { x: e.clientX, y: e.clientY };
   laserTrailPoints.push({ x: e.clientX, y: e.clientY, t: performance.now() });
-  laserVisible = true;
-  scheduleLaserIdle();
+}
+
+function handleLaserPointerUp(e) {
+  if (e.button !== 0) return;
+  endLaserStroke();
+}
+
+function handleLaserAreaLeave(e) {
+  if (e.pointerType && e.pointerType !== "mouse") return;
+  interruptLaserGesture();
 }
 
 function createLaserCanvas() {
@@ -1044,7 +1163,8 @@ function createLaserCanvas() {
   previewWrapEl.appendChild(laserCanvasEl);
   laserCanvasCtx = laserCanvasEl.getContext("2d");
   laserTrailPoints = [];
-  laserVisible = true;
+  laserDotPos = null;
+  laserStrokeActive = false;
   sizeLaserCanvas();
   laserAnimHandle = requestAnimationFrame(drawLaserFrame);
 }
@@ -1052,9 +1172,9 @@ function createLaserCanvas() {
 function removeLaserCanvas() {
   if (laserAnimHandle != null) cancelAnimationFrame(laserAnimHandle);
   laserAnimHandle = null;
-  clearTimeout(laserIdleTimer);
-  laserIdleTimer = null;
   laserTrailPoints = [];
+  laserDotPos = null;
+  laserStrokeActive = false;
   laserCanvasCtx = null;
   if (laserCanvasEl && laserCanvasEl.parentNode) laserCanvasEl.parentNode.removeChild(laserCanvasEl);
   laserCanvasEl = null;
@@ -1067,13 +1187,8 @@ function setPresentationTool(tool) {
   toolLaserEl.setAttribute("aria-pressed", String(tool === "laser"));
   previewWrapEl.classList.toggle("laser-active", tool === "laser");
   laserTrailPoints = [];
-  laserVisible = true;
-  if (tool === "laser") {
-    scheduleLaserIdle();
-  } else {
-    clearTimeout(laserIdleTimer);
-    laserIdleTimer = null;
-  }
+  laserDotPos = null;
+  laserStrokeActive = false;
   // Clicking a toolbar button is interaction with the toolbar itself, so
   // chrome stays visible (then fades on the normal idle timer).
   showPresentationChrome();
@@ -1379,7 +1494,12 @@ function teardownPresentation() {
   toolLaserEl.setAttribute("aria-pressed", "false");
   previewWrapEl.classList.remove("laser-active");
   window.removeEventListener("resize", fitPresentationSvg);
-  previewWrapEl.removeEventListener("mousemove", handlePresentationMouseMove);
+  previewWrapEl.removeEventListener("pointermove", handlePresentationPointerMove);
+  previewWrapEl.removeEventListener("pointerdown", handleLaserPointerDown);
+  previewWrapEl.removeEventListener("pointerleave", handleLaserAreaLeave);
+  window.removeEventListener("pointerup", handleLaserPointerUp);
+  window.removeEventListener("pointercancel", interruptLaserGesture);
+  window.removeEventListener("blur", interruptLaserGesture);
   clearTimeout(presentationIdleTimer);
   presentationIdleTimer = null;
   previewWrapEl.classList.remove("presenting", "chrome-visible", "idle", "can-pan", "panning");
@@ -1448,7 +1568,12 @@ async function enterPresentation() {
   fitPresentationSvg();
   setupHighlight();
   window.addEventListener("resize", fitPresentationSvg);
-  previewWrapEl.addEventListener("mousemove", handlePresentationMouseMove);
+  previewWrapEl.addEventListener("pointermove", handlePresentationPointerMove);
+  previewWrapEl.addEventListener("pointerdown", handleLaserPointerDown);
+  previewWrapEl.addEventListener("pointerleave", handleLaserAreaLeave);
+  window.addEventListener("pointerup", handleLaserPointerUp);
+  window.addEventListener("pointercancel", interruptLaserGesture);
+  window.addEventListener("blur", interruptLaserGesture);
   showPresentationChrome();
   schedulePresentationIdle();
   if (typeof previewWrapEl.requestFullscreen === "function") {
@@ -1484,6 +1609,9 @@ presentationExitEl.addEventListener("click", () => exitPresentation());
 
 document.addEventListener("keydown", (e) => {
   if (presenting) {
+    // Let the native color picker handle its own keys (including Escape to
+    // close the popup) without stepping the diagram or exiting presentation.
+    if (document.activeElement === laserColorEl) return;
     if (e.key === "Escape") {
       e.preventDefault();
       // Esc while pinned unpins only; Esc with nothing pinned exits (owner

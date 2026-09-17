@@ -13,7 +13,20 @@ Domain glossary for qack-maid. Use these terms as defined here; don't drift to s
 - **Download** / **Copy** — the two ways an Export is delivered: written to a file the browser saves, or placed on the system clipboard. Both are offered for both formats from the Export menu. They differ only in delivery — the SVG markup and PNG bytes are identical either way, attribution stamp included.
 - **Autosave** — the continuous write of Source to `localStorage`. Not a save the user triggers; happens on every `input` event regardless of validity. "Save" alone is ambiguous here — prefer "Autosave" when meaning this mechanism.
 
+## Presentation language
+
+**Laser pointer**:
+A presentation tool that marks the mouse location with a persistent dot over the presentation area, excluding its toolbar. Its color defaults to red and can be customized.
+_Avoid_: Map pointer
+
+**Laser trail**:
+The temporary tail drawn by left-clicking and dragging with the laser pointer, using the pointer's chosen color. Older portions continuously fade as the pointer moves.
+_Avoid_: Annotation, permanent stroke
+
+**Laser color**:
+The user's chosen color for both the laser pointer dot and its trail, remembered across visits. Red is the default.
+
 ## See also
 
 - `docs/adr/` for decisions behind the offline/single-file/no-backend shape of this app.
-- `docs/agents/domain.md` for how agent skills consume this file.
+- `AGENTS.md` for repository instructions and documentation conventions.
