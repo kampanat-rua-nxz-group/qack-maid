@@ -284,22 +284,47 @@
     fill: none !important;
     pointer-events: stroke !important;
   }
-  #presentation-exit {
+  .presentation-toolbar {
     display: none;
     position: fixed;
     top: 16px;
     right: 16px;
     z-index: 10000;
+    align-items: center;
+    gap: 8px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
   }
-  .preview-wrap.presenting #presentation-exit {
-    display: inline-flex;
+  .preview-wrap.presenting .presentation-toolbar {
+    display: flex;
   }
-  .preview-wrap.presenting.chrome-visible #presentation-exit {
+  .preview-wrap.presenting.chrome-visible .presentation-toolbar {
     opacity: 1;
     pointer-events: auto;
+  }
+  /* Active tool (issue #7): visibly marked via aria-pressed. */
+  .presentation-tool[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  /* Owner decision (issue #7): while lasering, the OS cursor stays hidden
+     over the diagram (the canvas dot replaces it) regardless of the idle
+     timer, but the toolbar itself always shows the normal cursor so its
+     buttons stay clickable/discoverable. */
+  .preview-wrap.presenting.laser-active {
+    cursor: none;
+  }
+  .preview-wrap.presenting.laser-active .presentation-toolbar,
+  .preview-wrap.presenting.laser-active .presentation-toolbar * {
+    cursor: default !important;
+  }
+  #laser-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    pointer-events: none;
   }
   @media (hover: none) {
     #present { display: none; }
@@ -451,7 +476,11 @@
     <div class="preview-wrap">
       <div id="error-banner"></div>
       <div id="preview"></div>
-      <button id="presentation-exit" type="button" title="Esc">Exit presentation</button>
+      <div id="presentation-toolbar" class="presentation-toolbar">
+        <button id="tool-pointer" type="button" class="presentation-tool" aria-pressed="true" title="Pointer">Pointer</button>
+        <button id="tool-laser" type="button" class="presentation-tool" aria-pressed="false" title="Laser">Laser</button>
+        <button id="presentation-exit" type="button" title="Esc">Exit presentation</button>
+      </div>
     </div>
     <div class="zoom-controls">
       <button id="zoom-out" type="button" title="Zoom out">&minus;</button>
@@ -563,8 +592,14 @@ const previewBgSelectEl = document.getElementById("preview-bg-select");
 const previewStatusEl = document.getElementById("preview-status");
 const presentBtn = document.getElementById("present");
 const presentationExitEl = document.getElementById("presentation-exit");
+const presentationToolbarEl = document.getElementById("presentation-toolbar");
+const toolPointerEl = document.getElementById("tool-pointer");
+const toolLaserEl = document.getElementById("tool-laser");
 
 let presenting = false;
+// Issue #7: mouse-only tool switch, no keyboard shortcut. Always reset to
+// "pointer" on entry (AC 14).
+let presentationTool = "pointer";
 let savedZoomLevel = null;
 let savedTabPane = null;
 let savedPan = null;
@@ -910,10 +945,143 @@ function schedulePresentationIdle() {
   }, PRESENTATION_IDLE_MS);
 }
 
-function handlePresentationMouseMove() {
+// Owner decision (issue #7, resolving the spec's open question): in Laser
+// mode, moving over the diagram must not reveal the toolbar — only moving
+// near/over the toolbar's own region does, after which it fades on the same
+// ~2s idle timer as always. Pointer mode is unchanged (any move reveals).
+const PRESENTATION_TOOLBAR_HOT_PAD = 24;
+function pointNearPresentationToolbar(x, y) {
+  const rect = presentationToolbarEl.getBoundingClientRect();
+  if (!rect.width && !rect.height) return false;
+  return (
+    x >= rect.left - PRESENTATION_TOOLBAR_HOT_PAD &&
+    x <= rect.right + PRESENTATION_TOOLBAR_HOT_PAD &&
+    y >= rect.top - PRESENTATION_TOOLBAR_HOT_PAD &&
+    y <= rect.bottom + PRESENTATION_TOOLBAR_HOT_PAD
+  );
+}
+
+function handlePresentationMouseMove(e) {
+  if (presentationTool === "laser") {
+    handleLaserPointerMove(e);
+    if (pointNearPresentationToolbar(e.clientX, e.clientY)) {
+      showPresentationChrome();
+      schedulePresentationIdle();
+    }
+    return;
+  }
   showPresentationChrome();
   schedulePresentationIdle();
 }
+
+// --- Laser trail (issue #7) ---------------------------------------------
+// A separate <canvas> overlay above the preview, `pointer-events: none`, so
+// it never interferes with the SVG/hit-areas and never appears in exports
+// (AC 10, 15). Created on presentation enter, sized to the fullscreen
+// viewport (resized on every refit via fitPresentationSvg), and removed on
+// teardown along with its listeners and animation frame.
+const LASER_TRAIL_FADE_MS = 950; // ~1s, per spec assumption
+const LASER_DOT_RGB = "220, 38, 38"; // red, per spec assumption
+let laserCanvasEl = null;
+let laserCanvasCtx = null;
+let laserTrailPoints = []; // { x, y, t } in viewport (client) coordinates
+let laserVisible = true;
+let laserAnimHandle = null;
+let laserIdleTimer = null;
+
+function sizeLaserCanvas() {
+  if (!laserCanvasEl) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  laserCanvasEl.width = Math.round(w * dpr);
+  laserCanvasEl.height = Math.round(h * dpr);
+  laserCanvasEl.style.width = w + "px";
+  laserCanvasEl.style.height = h + "px";
+  laserCanvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawLaserFrame() {
+  if (!laserCanvasCtx) return;
+  const now = performance.now();
+  laserCanvasCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  laserTrailPoints = laserTrailPoints.filter((p) => now - p.t < LASER_TRAIL_FADE_MS);
+  laserTrailPoints.forEach((p, i) => {
+    const age = now - p.t;
+    const alpha = Math.max(0, 1 - age / LASER_TRAIL_FADE_MS);
+    const isHead = i === laserTrailPoints.length - 1;
+    // Idle-hide (owner-confirmed): the current dot hides after ~2s idle and
+    // reappears on move, but older trail points keep fading on their own.
+    if (isHead && !laserVisible) return;
+    const radius = isHead ? 7 : 4;
+    laserCanvasCtx.beginPath();
+    laserCanvasCtx.fillStyle = `rgba(${LASER_DOT_RGB}, ${alpha})`;
+    laserCanvasCtx.shadowColor = `rgba(${LASER_DOT_RGB}, ${Math.min(1, alpha + 0.2)})`;
+    laserCanvasCtx.shadowBlur = 14;
+    laserCanvasCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    laserCanvasCtx.fill();
+  });
+  laserAnimHandle = requestAnimationFrame(drawLaserFrame);
+}
+
+function scheduleLaserIdle() {
+  clearTimeout(laserIdleTimer);
+  laserIdleTimer = setTimeout(() => {
+    laserVisible = false;
+  }, PRESENTATION_IDLE_MS);
+}
+
+function handleLaserPointerMove(e) {
+  laserTrailPoints.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+  laserVisible = true;
+  scheduleLaserIdle();
+}
+
+function createLaserCanvas() {
+  if (laserCanvasEl) return;
+  laserCanvasEl = document.createElement("canvas");
+  laserCanvasEl.id = "laser-canvas";
+  previewWrapEl.appendChild(laserCanvasEl);
+  laserCanvasCtx = laserCanvasEl.getContext("2d");
+  laserTrailPoints = [];
+  laserVisible = true;
+  sizeLaserCanvas();
+  laserAnimHandle = requestAnimationFrame(drawLaserFrame);
+}
+
+function removeLaserCanvas() {
+  if (laserAnimHandle != null) cancelAnimationFrame(laserAnimHandle);
+  laserAnimHandle = null;
+  clearTimeout(laserIdleTimer);
+  laserIdleTimer = null;
+  laserTrailPoints = [];
+  laserCanvasCtx = null;
+  if (laserCanvasEl && laserCanvasEl.parentNode) laserCanvasEl.parentNode.removeChild(laserCanvasEl);
+  laserCanvasEl = null;
+}
+
+function setPresentationTool(tool) {
+  if (!presenting || presentationTool === tool) return;
+  presentationTool = tool;
+  toolPointerEl.setAttribute("aria-pressed", String(tool === "pointer"));
+  toolLaserEl.setAttribute("aria-pressed", String(tool === "laser"));
+  previewWrapEl.classList.toggle("laser-active", tool === "laser");
+  laserTrailPoints = [];
+  laserVisible = true;
+  if (tool === "laser") {
+    scheduleLaserIdle();
+  } else {
+    clearTimeout(laserIdleTimer);
+    laserIdleTimer = null;
+  }
+  // Clicking a toolbar button is interaction with the toolbar itself, so
+  // chrome stays visible (then fades on the normal idle timer).
+  showPresentationChrome();
+  schedulePresentationIdle();
+}
+
+toolPointerEl.addEventListener("click", () => setPresentationTool("pointer"));
+toolLaserEl.addEventListener("click", () => setPresentationTool("laser"));
 
 function canPresent() {
   return !!previewEl.querySelector("svg") && !previewEl.classList.contains("has-error");
@@ -938,6 +1106,7 @@ function setZoomControlsDisabled(disabled) {
 // 100% presentation zoom always means "fit", per issue #6.
 function fitPresentationSvg() {
   if (!presenting) return;
+  sizeLaserCanvas(); // issue #7: keep the laser overlay sized to the viewport on every refit
   const svg = previewEl.querySelector("svg");
   if (!svg) return;
   const baseW = parseFloat(svg.dataset.baseWidth);
@@ -1066,6 +1235,7 @@ function unpinHighlight() {
 }
 
 function onHighlightPointerOver(e) {
+  if (presentationTool === "laser") return; // issue #7: laser suppresses hover preview
   if (pinnedHighlight) return; // pinned beats hover
   const target = resolveHighlightTarget(e.target);
   if (!target || target === hoveredHighlight) return;
@@ -1074,6 +1244,7 @@ function onHighlightPointerOver(e) {
 }
 
 function onHighlightPointerOut(e) {
+  if (presentationTool === "laser") return; // issue #7
   if (pinnedHighlight) return;
   if (!hoveredHighlight) return;
   const stillOver = resolveHighlightTarget(e.relatedTarget);
@@ -1083,6 +1254,7 @@ function onHighlightPointerOut(e) {
 }
 
 function onHighlightClick(e) {
+  if (presentationTool === "laser") return; // issue #7: laser clicks never pin/unpin
   // Issue #6: a drag-to-pan gesture must never pin/unpin. The pointerdown
   // handler below sets this once movement crosses the drag threshold; the
   // click that follows a drag consumes and clears it instead of acting.
@@ -1201,6 +1373,11 @@ function teardownPresentation() {
   if (!presenting) return;
   presenting = false;
   teardownHighlight();
+  removeLaserCanvas();
+  presentationTool = "pointer";
+  toolPointerEl.setAttribute("aria-pressed", "true");
+  toolLaserEl.setAttribute("aria-pressed", "false");
+  previewWrapEl.classList.remove("laser-active");
   window.removeEventListener("resize", fitPresentationSvg);
   previewWrapEl.removeEventListener("mousemove", handlePresentationMouseMove);
   clearTimeout(presentationIdleTimer);
@@ -1261,6 +1438,12 @@ async function enterPresentation() {
     applyZoom(); // measure now that the pane is visible
   }
   previewWrapEl.classList.add("presenting");
+  // Issue #7: Pointer is always the active tool on entry (AC 14).
+  presentationTool = "pointer";
+  toolPointerEl.setAttribute("aria-pressed", "true");
+  toolLaserEl.setAttribute("aria-pressed", "false");
+  previewWrapEl.classList.remove("laser-active");
+  createLaserCanvas();
   setZoomControlsDisabled(true);
   fitPresentationSvg();
   setupHighlight();
@@ -1391,6 +1574,11 @@ function panBy(dx, dy) {
 previewWrapEl.addEventListener("pointerdown", (e) => {
   // left button only, and never steal a click meant for selecting text/links
   if (e.button !== 0) return;
+  // Issue #7: never start a pan from the toolbar (exit control + tool
+  // buttons) — they must stay clickable even when the diagram overflows.
+  if (presenting && e.target.closest && e.target.closest("#presentation-toolbar")) return;
+  // Issue #7: laser mode never pans, drag or otherwise.
+  if (presenting && presentationTool === "laser") return;
   // Issue #6: while presenting, drag-to-pan is only active once the zoomed
   // diagram overflows the viewport (`.can-pan`); otherwise leave the event
   // alone so the normal click (pin/unpin) fires unimpeded.
