@@ -226,3 +226,80 @@ test.describe("presentation mode — sequence teardown (AC 10 for sequence)", ()
     expect(postSvg).toBe(preSvg);
   });
 });
+
+// Nested frames are separate SVG groups; their messages are not children.
+test.describe("presentation mode — alt boxes", () => {
+  test.beforeEach(async ({ page }) => {
+    await forceFullscreenFallback(page);
+    await page.goto("/index.html");
+    await page.locator("#source").fill(`sequenceDiagram
+participant A
+participant B
+alt outer
+A->>B: One
+alt inner
+B->>A: Two
+else inner fallback
+A->>B: Three
+end
+else outer fallback
+B->>A: Four
+end`);
+    await expect(page.locator("#preview .labelText")).toHaveCount(2);
+  });
+
+  function frame(page: Page, condition: string) {
+    return page.locator('#preview g[data-et="control-structure"]')
+      .filter({ has: page.locator(".loopText", { hasText: `[${condition}]` }) });
+  }
+
+  test("frame borders and branch labels highlight one whole alt box; nested boxes and messages stay independent", async ({ page }) => {
+    await enterPresentation(page);
+    const outer = frame(page, "outer");
+    const inner = frame(page, "inner");
+    for (const selector of [".labelText", ".loopText", ".sectionTitle", ".loopLine"]) {
+      if (selector === ".loopLine") {
+        // A horizontal SVG line has zero height, so locator.hover() rejects it.
+        const border = (await outer.locator(selector).first().boundingBox())!;
+        await page.mouse.move(border.x + border.width / 2, border.y);
+      } else {
+        await outer.locator(selector).hover();
+      }
+      await expect(outer).toHaveClass(/presentation-focus/);
+      await expect(inner).toHaveClass(/presentation-dim/);
+      await expect(topGroupLocator(page, "A")).toHaveClass(/presentation-dim/);
+      await expect(page.locator("#preview line.messageLine0").first()).toHaveClass(/presentation-dim/);
+    }
+    await inner.locator(".labelText").hover();
+    await expect(inner).toHaveClass(/presentation-focus/);
+    await expect(outer).toHaveClass(/presentation-dim/);
+    const message = page.locator("#preview line.messageLine0").first();
+    const box = (await message.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 3);
+    await expect(message).toHaveClass(/presentation-focus/);
+    await expect(inner).toHaveClass(/presentation-dim/);
+    await page.mouse.move(4, 4);
+    await expect(page.locator("#preview .presentation-focus, #preview .presentation-dim")).toHaveCount(0);
+  });
+
+  test("alt pin survives hover, stepping stays on participants, and exit restores the SVG", async ({ page }) => {
+    const original = await page.evaluate(() => (window as any).buildExportSvgMarkup());
+    await enterPresentation(page);
+    const outer = frame(page, "outer");
+    await outer.locator(".labelText").click();
+    await topGroupLocator(page, "A").hover();
+    await expect(outer).toHaveClass(/presentation-focus/);
+    await page.keyboard.press("ArrowRight");
+    await expect(topGroupLocator(page, "A")).toHaveClass(/presentation-focus/);
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    await expect(topGroupLocator(page, "B")).toHaveClass(/presentation-focus/);
+    await outer.locator(".sectionTitle").click();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#preview .presentation-focus")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".preview-wrap")).not.toHaveClass(/presenting/);
+    expect(await page.evaluate(() => (window as any).buildExportSvgMarkup())).toBe(original);
+    await expect(page.locator("#preview .presentation-focus, #preview .presentation-dim, #preview .presentation-hit-area")).toHaveCount(0);
+  });
+});

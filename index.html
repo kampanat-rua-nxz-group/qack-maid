@@ -1293,6 +1293,13 @@ const PRESENTATION_HIGHLIGHT_MAP = {
         .map((entry) => entry.elements);
     },
     edgeSelector: "line.messageLine0, line.messageLine1",
+    boxGroups(svg) {
+      // Mermaid puts each frame and its branch labels in a separate group,
+      // even for nested alt blocks. Messages remain independent targets.
+      return Array.from(svg.querySelectorAll('g[data-et="control-structure"]'))
+        .filter((group) => group.querySelector(".labelText")?.textContent.trim() === "alt")
+        .map((group) => [group]);
+    },
   },
 };
 
@@ -1303,6 +1310,7 @@ function buildNodeGroups(svg, map) {
 
 let highlightSvg = null;
 let highlightNodeGroups = []; // array of groups; each group is an array of one-or-more elements acting as one logical node
+let highlightBoxGroups = []; // selectable frames, excluded from participant stepping
 let highlightEdges = []; // the real (thin) edge elements — never the hit-area clones
 let highlightHitAreaByEdge = new WeakMap(); // real edge element -> its hit-area clone
 let highlightEdgeByHitArea = new WeakMap(); // hit-area clone -> its real edge element
@@ -1314,14 +1322,14 @@ function resolveHighlightTarget(eventTarget) {
   if (!eventTarget || typeof eventTarget.closest !== "function") return null;
   const hitArea = eventTarget.closest(".presentation-hit-area");
   if (hitArea) return highlightEdgeByHitArea.get(hitArea) || null;
-  for (const group of highlightNodeGroups) {
+  for (const group of highlightNodeGroups.concat(highlightBoxGroups)) {
     if (group.some((el) => el === eventTarget || el.contains(eventTarget))) return group;
   }
   return null;
 }
 
 function allHighlightables() {
-  return highlightNodeGroups.flat().concat(highlightEdges);
+  return highlightNodeGroups.flat().concat(highlightBoxGroups.flat(), highlightEdges);
 }
 
 function applySpotlight(target) {
@@ -1419,6 +1427,7 @@ function setupHighlight() {
   if (!map) return; // unmatched diagram type: no highlight, no error
   highlightSvg = svg;
   highlightNodeGroups = buildNodeGroups(svg, map);
+  highlightBoxGroups = map.boxGroups ? map.boxGroups(svg) : [];
   highlightEdges = Array.from(svg.querySelectorAll(map.edgeSelector));
   highlightHitAreaByEdge = new WeakMap();
   highlightEdgeByHitArea = new WeakMap();
@@ -1473,6 +1482,7 @@ function teardownHighlight() {
   });
   highlightSvg = null;
   highlightNodeGroups = [];
+  highlightBoxGroups = [];
   highlightEdges = [];
   highlightHitAreaByEdge = new WeakMap();
   highlightEdgeByHitArea = new WeakMap();
