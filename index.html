@@ -270,10 +270,15 @@
     outline-offset: 2px;
   }
   .presentation-hit-area {
-    stroke: transparent;
-    stroke-width: 12;
-    fill: none;
-    pointer-events: stroke;
+    /* !important: some diagrams' own inlined stylesheet carries an
+       ID-scoped catch-all rule for the bare tag (e.g. sequence diagrams'
+       `#graph-N line{stroke-width:2px;...}`, meant for actor-man icons)
+       that would otherwise outrank this plain class selector on
+       specificity even after Mermaid's own classes are stripped. */
+    stroke: transparent !important;
+    stroke-width: 12 !important;
+    fill: none !important;
+    pointer-events: stroke !important;
   }
   #presentation-exit {
     display: none;
@@ -921,48 +926,92 @@ function fitPresentationSvg() {
   svg.style.height = (baseH * scale) + "px";
 }
 
-// --- Spotlight highlighting (issue #3) ----------------------------------
-// One selector map keyed by the rendered SVG's `aria-roledescription`, so a
-// future diagram type (sequence — issue #5) is just another entry. Diagram
-// types with no entry get no highlight and no errors (spec: "Out of scope").
+// --- Spotlight highlighting (issue #3, generalized for sequence — issue #5) --
+// One selector map keyed by the rendered SVG's `aria-roledescription`.
+// Diagram types with no entry get no highlight and no errors (spec: "Out of
+// scope"). A "node" is not always a single element — a sequence participant
+// is two elements (top + bottom `mirrorActors` copies) that must act as one
+// for hover/pin/dim/outline/stepping — so each map entry either lists a flat
+// `nodeSelector` (one element = one node, e.g. flowchart) or provides a
+// `nodeGroups(svg)` function returning an array of element groups (one array
+// per logical node). `highlightNodeGroups` always holds the latter shape;
+// buildNodeGroups() wraps a flat `nodeSelector` into single-element groups so
+// the rest of the pipeline (dim/focus/pin/step) only deals with groups.
 //
 // Verified against the built-in flowchart example's rendered SVG
 // (Mermaid 11.16.1, `aria-roledescription="flowchart-v2"`):
 //   - nodes: `.nodes > g.node`      (one <g> per box, e.g. id="…-flowchart-A-0")
 //   - edges: `.edgePaths > path`    (one <path> per line, e.g. id="…-L_A_B_0")
+//
+// Verified against the built-in sequence example's rendered SVG (Mermaid
+// 11.16.1, `aria-roledescription="sequence"`, participants A/B, 2 messages):
+//   - participant copies: `rect.actor.actor-top[name]` / `rect.actor.actor-bottom[name]`,
+//     each living in its own wrapping <g> (the bottom copy's <g> has no
+//     id/class; the top copy's <g> has id="root-N" and data-id). The two
+//     copies for one participant are correlated only by sharing the same
+//     `name` attribute value — grouped by that below.
+//   - message arrows: `line.messageLine0` (solid) / `line.messageLine1`
+//     (dashed) — the class marks arrow style, not message index. Arrowhead
+//     markers and message-text labels are not part of the highlightable unit
+//     (matches flowchart edges, which don't include labels either).
 const PRESENTATION_HIGHLIGHT_MAP = {
   "flowchart-v2": {
     nodeSelector: ".nodes > g.node",
     edgeSelector: ".edgePaths > path",
   },
+  "sequence": {
+    nodeGroups(svg) {
+      const rects = Array.from(svg.querySelectorAll("rect.actor.actor-top, rect.actor.actor-bottom"));
+      const byName = new Map(); // name attribute -> { x, elements: [<g> per copy] }
+      rects.forEach((rect) => {
+        const name = rect.getAttribute("name") || "";
+        const container = rect.parentElement || rect; // <g> wrapping this copy's rect + label
+        const entry = byName.get(name) || { x: parseFloat(rect.getAttribute("x")) || 0, elements: [] };
+        entry.elements.push(container);
+        byName.set(name, entry);
+      });
+      // Left-to-right (x-ascending) order — matches the participants' visual
+      // reading order (and their declared order in this example).
+      return Array.from(byName.values())
+        .sort((a, b) => a.x - b.x)
+        .map((entry) => entry.elements);
+    },
+    edgeSelector: "line.messageLine0, line.messageLine1",
+  },
 };
 
+function buildNodeGroups(svg, map) {
+  if (typeof map.nodeGroups === "function") return map.nodeGroups(svg);
+  return Array.from(svg.querySelectorAll(map.nodeSelector)).map((el) => [el]);
+}
+
 let highlightSvg = null;
-let highlightNodes = [];
-let highlightEdges = []; // the real (thin) edge paths — never the hit-area clones
-let highlightHitAreaByEdge = new WeakMap(); // real edge path -> its hit-area clone
-let highlightEdgeByHitArea = new WeakMap(); // hit-area clone -> its real edge path
-let highlightOriginalClass = new WeakMap(); // node/edge -> its exact pre-presentation class attribute
-let pinnedHighlight = null; // the currently pinned node <g> or edge <path>
-let hoveredHighlight = null; // the currently hovered node <g> or edge <path>
+let highlightNodeGroups = []; // array of groups; each group is an array of one-or-more elements acting as one logical node
+let highlightEdges = []; // the real (thin) edge elements — never the hit-area clones
+let highlightHitAreaByEdge = new WeakMap(); // real edge element -> its hit-area clone
+let highlightEdgeByHitArea = new WeakMap(); // hit-area clone -> its real edge element
+let highlightOriginalClass = new WeakMap(); // element -> its exact pre-presentation class attribute (may be null if it had none)
+let pinnedHighlight = null; // the currently pinned node group (array) or edge element
+let hoveredHighlight = null; // the currently hovered node group (array) or edge element
 
 function resolveHighlightTarget(eventTarget) {
   if (!eventTarget || typeof eventTarget.closest !== "function") return null;
   const hitArea = eventTarget.closest(".presentation-hit-area");
   if (hitArea) return highlightEdgeByHitArea.get(hitArea) || null;
-  for (const node of highlightNodes) {
-    if (node === eventTarget || node.contains(eventTarget)) return node;
+  for (const group of highlightNodeGroups) {
+    if (group.some((el) => el === eventTarget || el.contains(eventTarget))) return group;
   }
   return null;
 }
 
 function allHighlightables() {
-  return highlightNodes.concat(highlightEdges);
+  return highlightNodeGroups.flat().concat(highlightEdges);
 }
 
 function applySpotlight(target) {
+  const targetElements = new Set(Array.isArray(target) ? target : [target]);
   allHighlightables().forEach((el) => {
-    if (el === target) {
+    if (targetElements.has(el)) {
       el.classList.remove("presentation-dim");
       el.classList.add("presentation-focus");
     } else {
@@ -995,7 +1044,6 @@ function onHighlightPointerOver(e) {
 function onHighlightPointerOut(e) {
   if (pinnedHighlight) return;
   if (!hoveredHighlight) return;
-  if (e.relatedTarget && hoveredHighlight.contains(e.relatedTarget)) return;
   const stillOver = resolveHighlightTarget(e.relatedTarget);
   if (stillOver === hoveredHighlight) return;
   hoveredHighlight = null;
@@ -1019,20 +1067,22 @@ function pinHighlight(target) {
   applySpotlight(target);
 }
 
-// Steps the pin through highlightNodes only, in DOM order (issue #4). A
-// pinned edge counts as "nothing pinned" — an edge is never a step
-// position, so stepping from one always lands on an end (first/last node)
-// rather than continuing from the edge's position in some combined order.
+// Steps the pin through highlightNodeGroups only, in group order (issue #4;
+// generalized for grouped nodes in issue #5 — a sequence participant's two
+// copies count as one step position, never two). A pinned edge counts as
+// "nothing pinned" — an edge is never a step position, so stepping from one
+// always lands on an end (first/last node) rather than continuing from the
+// edge's position in some combined order.
 function stepHighlight(direction) {
-  if (!highlightNodes.length) return; // unmatched diagram type: no-op
-  const currentIndex = pinnedHighlight ? highlightNodes.indexOf(pinnedHighlight) : -1;
+  if (!highlightNodeGroups.length) return; // unmatched diagram type: no-op
+  const currentIndex = pinnedHighlight ? highlightNodeGroups.indexOf(pinnedHighlight) : -1;
   let nextIndex;
   if (currentIndex === -1) {
-    nextIndex = direction > 0 ? 0 : highlightNodes.length - 1;
+    nextIndex = direction > 0 ? 0 : highlightNodeGroups.length - 1;
   } else {
-    nextIndex = Math.min(highlightNodes.length - 1, Math.max(0, currentIndex + direction));
+    nextIndex = Math.min(highlightNodeGroups.length - 1, Math.max(0, currentIndex + direction));
   }
-  pinHighlight(highlightNodes[nextIndex]);
+  pinHighlight(highlightNodeGroups[nextIndex]);
 }
 
 function setupHighlight() {
@@ -1042,13 +1092,16 @@ function setupHighlight() {
   const map = PRESENTATION_HIGHLIGHT_MAP[kind];
   if (!map) return; // unmatched diagram type: no highlight, no error
   highlightSvg = svg;
-  highlightNodes = Array.from(svg.querySelectorAll(map.nodeSelector));
+  highlightNodeGroups = buildNodeGroups(svg, map);
   highlightEdges = Array.from(svg.querySelectorAll(map.edgeSelector));
   highlightHitAreaByEdge = new WeakMap();
   highlightEdgeByHitArea = new WeakMap();
   highlightOriginalClass = new WeakMap();
-  highlightNodes.concat(highlightEdges).forEach((el) => {
-    highlightOriginalClass.set(el, el.getAttribute("class") || "");
+  // Store the exact original class attribute (possibly null — a sequence
+  // participant's wrapping <g> has no class attribute at all) so teardown
+  // can restore it precisely rather than leaving a stray `class=""`.
+  allHighlightables().forEach((el) => {
+    highlightOriginalClass.set(el, el.getAttribute("class"));
   });
   highlightEdges.forEach((edge) => {
     // Shallow clone (paths have no children); drop the original's id/markers
@@ -1079,16 +1132,21 @@ function teardownHighlight() {
   // than classList.remove(): DOMTokenList re-serializes (and can dedupe) the
   // whole attribute on any mutation, which would leave the SVG byte-different
   // from a pre-presentation export even with no dim/focus class left on it.
+  // An original value of `null` means the element had no class attribute at
+  // all (e.g. a sequence participant's wrapping <g>) — remove it rather than
+  // setting `class=""`, which would itself be a byte difference.
   allHighlightables().forEach((el) => {
+    if (!highlightOriginalClass.has(el)) return;
     const original = highlightOriginalClass.get(el);
-    if (original !== undefined) el.setAttribute("class", original);
+    if (original === null) el.removeAttribute("class");
+    else el.setAttribute("class", original);
   });
   highlightEdges.forEach((edge) => {
     const hitArea = highlightHitAreaByEdge.get(edge);
     if (hitArea && hitArea.parentNode) hitArea.parentNode.removeChild(hitArea);
   });
   highlightSvg = null;
-  highlightNodes = [];
+  highlightNodeGroups = [];
   highlightEdges = [];
   highlightHitAreaByEdge = new WeakMap();
   highlightEdgeByHitArea = new WeakMap();
