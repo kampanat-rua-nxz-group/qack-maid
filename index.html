@@ -197,6 +197,10 @@
   .preview-wrap { cursor: grab; }
   .preview-wrap.panning { cursor: grabbing; }
   .preview-wrap.presenting { cursor: default; }
+  /* Issue #6: while presenting, grab/grabbing only applies once the zoomed
+     diagram overflows the fullscreen viewport (`.can-pan`, toggled in JS). */
+  .preview-wrap.presenting.can-pan { cursor: grab; }
+  .preview-wrap.presenting.can-pan.panning { cursor: grabbing; }
   .preview-wrap.panning #preview { user-select: none; }
   #preview {
     padding: 16px;
@@ -564,6 +568,13 @@ let presenting = false;
 let savedZoomLevel = null;
 let savedTabPane = null;
 let savedPan = null;
+// Presentation-only zoom multiplier (issue #6): relative to the presentation
+// fit size, independent of the pre-presentation `zoomLevel`, which stays
+// saved/restored untouched by this. Always reset to 1 (= fit) on enter/exit.
+let presentationZoom = 1;
+function clampPresentationZoom(v) {
+  return Math.min(3, Math.max(0.25, +v.toFixed(2)));
+}
 
 const DEFAULT_CUSTOM_COLORS = {
   primary: "#2f6fed",
@@ -852,7 +863,19 @@ document.getElementById("zoom-reset").addEventListener("click", () => {
   applyZoom();
 });
 previewWrapEl.addEventListener("wheel", (e) => {
-  if (presenting) return; // zoom and pan are disabled while presenting
+  if (presenting) {
+    // Issue #6: Ctrl/Cmd+wheel (incl. trackpad pinch) zooms relative to the
+    // presentation fit size; a plain wheel pans, but only once the diagram
+    // overflows the viewport (`.can-pan`, kept in sync by fitPresentationSvg).
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      presentationZoom = clampPresentationZoom(presentationZoom + (e.deltaY < 0 ? 0.1 : -0.1));
+      fitPresentationSvg();
+    } else if (previewWrapEl.classList.contains("can-pan")) {
+      panBy(-e.deltaX, -e.deltaY);
+    }
+    return;
+  }
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) {
     zoomLevel = Math.min(3, Math.max(0.25, +(zoomLevel + (e.deltaY < 0 ? 0.1 : -0.1)).toFixed(2)));
@@ -910,7 +933,9 @@ function setZoomControlsDisabled(disabled) {
 
 // Fits the cached (aspect-correct) base size of the current svg against the
 // current .preview-wrap box — the fullscreen viewport, not the pane width
-// applyZoom() would otherwise use.
+// applyZoom() would otherwise use. Re-measures the fit base every call (so a
+// resize refit re-derives it) and then applies `presentationZoom` on top, so
+// 100% presentation zoom always means "fit", per issue #6.
 function fitPresentationSvg() {
   if (!presenting) return;
   const svg = previewEl.querySelector("svg");
@@ -921,9 +946,16 @@ function fitPresentationSvg() {
   const PAD = 32; // matches #preview's 16px horizontal/vertical padding
   const availW = Math.max(1, previewWrapEl.clientWidth - PAD);
   const availH = Math.max(1, previewWrapEl.clientHeight - PAD);
-  const scale = Math.min(availW / baseW, availH / baseH);
-  svg.style.width = (baseW * scale) + "px";
-  svg.style.height = (baseH * scale) + "px";
+  const fitScale = Math.min(availW / baseW, availH / baseH);
+  const scale = fitScale * presentationZoom;
+  const width = baseW * scale;
+  const height = baseH * scale;
+  svg.style.width = width + "px";
+  svg.style.height = height + "px";
+  // Drag-to-pan (and wheel-pan) only kicks in once the zoomed diagram
+  // overflows the viewport it's fit against.
+  previewWrapEl.classList.toggle("can-pan", width > availW || height > availH);
+  clampPan();
 }
 
 // --- Spotlight highlighting (issue #3, generalized for sequence — issue #5) --
@@ -1051,6 +1083,13 @@ function onHighlightPointerOut(e) {
 }
 
 function onHighlightClick(e) {
+  // Issue #6: a drag-to-pan gesture must never pin/unpin. The pointerdown
+  // handler below sets this once movement crosses the drag threshold; the
+  // click that follows a drag consumes and clears it instead of acting.
+  if (dragSuppressClick) {
+    dragSuppressClick = false;
+    return;
+  }
   const target = resolveHighlightTarget(e.target);
   if (target) {
     pinnedHighlight = target;
@@ -1166,7 +1205,8 @@ function teardownPresentation() {
   previewWrapEl.removeEventListener("mousemove", handlePresentationMouseMove);
   clearTimeout(presentationIdleTimer);
   presentationIdleTimer = null;
-  previewWrapEl.classList.remove("presenting", "chrome-visible", "idle");
+  previewWrapEl.classList.remove("presenting", "chrome-visible", "idle", "can-pan", "panning");
+  presentationZoom = 1;
   const svg = previewEl.querySelector("svg");
   if (svg) {
     // Clear the sizing this feature applied so applyZoom() re-measures a
@@ -1203,6 +1243,7 @@ async function enterPresentation() {
   savedZoomLevel = zoomLevel;
   savedPan = { x: panX, y: panY };
   resetPan();
+  presentationZoom = 1; // starts at fit, independent of the saved zoomLevel
   // Blur so keystrokes can't reach the hidden textarea and trigger a render
   // (which would replace the svg mid-presentation).
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -1271,6 +1312,21 @@ document.addEventListener("keydown", (e) => {
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
       stepHighlight(-1);
+    } else if (e.key === "+" || e.key === "=") {
+      // Issue #6: zoom keys, added to the presenting keydown allow-list
+      // alongside arrows/Esc (everything else stays suppressed, AC 9).
+      e.preventDefault();
+      presentationZoom = clampPresentationZoom(presentationZoom + 0.15);
+      fitPresentationSvg();
+    } else if (e.key === "-") {
+      e.preventDefault();
+      presentationZoom = clampPresentationZoom(presentationZoom - 0.15);
+      fitPresentationSvg();
+    } else if (e.key === "0") {
+      e.preventDefault();
+      presentationZoom = 1;
+      resetPan();
+      fitPresentationSvg();
     }
     return;
   }
@@ -1290,6 +1346,13 @@ document.addEventListener("keydown", (e) => {
 // dragged completely out of sight.
 const PAN_KEEP_VISIBLE = 60;
 let panX = 0, panY = 0;
+// Issue #6: while presenting, a primary-button press only becomes a drag
+// (pan) once movement exceeds this threshold; below it, the gesture is a
+// click (pin/unpin, issue #3). `dragSuppressClick` is set once a gesture
+// crosses the threshold so the click that follows a drag is swallowed by
+// onHighlightClick instead of pinning/unpinning.
+const PAN_DRAG_THRESHOLD = 4;
+let dragSuppressClick = false;
 
 function applyPan() {
   previewEl.style.transform = (panX || panY) ? "translate(" + panX + "px," + panY + "px)" : "";
@@ -1324,22 +1387,42 @@ function panBy(dx, dy) {
 previewWrapEl.addEventListener("pointerdown", (e) => {
   // left button only, and never steal a click meant for selecting text/links
   if (e.button !== 0) return;
-  if (presenting) return; // zoom and pan are disabled while presenting
+  // Issue #6: while presenting, drag-to-pan is only active once the zoomed
+  // diagram overflows the viewport (`.can-pan`); otherwise leave the event
+  // alone so the normal click (pin/unpin) fires unimpeded.
+  if (presenting && !previewWrapEl.classList.contains("can-pan")) return;
   e.preventDefault();
-  let lastX = e.clientX, lastY = e.clientY;
-  previewWrapEl.classList.add("panning");
+  const startX = e.clientX, startY = e.clientY;
+  let lastX = startX, lastY = startY;
+  // Outside presentation mode there's no click-to-pin to protect, so panning
+  // starts immediately, as before. While presenting, wait for movement past
+  // PAN_DRAG_THRESHOLD before treating this as a drag (spec: press+move
+  // beyond ~4px = drag, below it = click).
+  let dragging = !presenting;
   previewWrapEl.setPointerCapture(e.pointerId);
+  if (dragging) previewWrapEl.classList.add("panning");
   const onMove = (moveEvent) => {
+    if (!dragging) {
+      const dx = moveEvent.clientX - startX, dy = moveEvent.clientY - startY;
+      if (Math.hypot(dx, dy) < PAN_DRAG_THRESHOLD) return;
+      dragging = true;
+      dragSuppressClick = true;
+      previewWrapEl.classList.add("panning");
+    }
     panBy(moveEvent.clientX - lastX, moveEvent.clientY - lastY);
     lastX = moveEvent.clientX;
     lastY = moveEvent.clientY;
   };
-  const onUp = () => {
+  const onUp = (upEvent) => {
     previewWrapEl.classList.remove("panning");
     previewWrapEl.releasePointerCapture(e.pointerId);
     previewWrapEl.removeEventListener("pointermove", onMove);
     previewWrapEl.removeEventListener("pointerup", onUp);
     previewWrapEl.removeEventListener("pointercancel", onUp);
+    // A cancelled gesture (e.g. the pointer left the window) never dispatches
+    // a click, so nothing will consume dragSuppressClick — clear it here to
+    // avoid it wrongly swallowing the next unrelated click.
+    if (upEvent.type === "pointercancel") dragSuppressClick = false;
   };
   previewWrapEl.addEventListener("pointermove", onMove);
   previewWrapEl.addEventListener("pointerup", onUp);
