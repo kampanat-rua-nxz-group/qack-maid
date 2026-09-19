@@ -8,7 +8,7 @@ Status: Implemented and validated — focused (`tests/specs/presentation-laser.s
 - While Laser is enabled, show a dot at the mouse location throughout the presentation area, including blank space surrounding the diagram, excluding the toolbar.
 - Keep the dot visible when the mouse is stationary. Hide it outside the eligible area, on window focus loss, when switching tools, and when leaving presentation mode.
 - Mouse movement without a held left button moves only the dot.
-- A left-button press in the eligible area begins a stroke. Movement during that stroke adds a trail that continuously fades, retaining the existing 950 ms lifetime.
+- A left-button press in the eligible area begins a stroke. Movement during that stroke adds a continuous line, like a pen stroke, that fades from its tail, over a 2 s lifetime. Separate strokes are never joined.
 - Stop drawing on button release, entering the toolbar, leaving the presentation area, or losing window focus. After an interruption, require a fresh left-button press to begin another stroke. Existing trail portions finish fading while the presentation remains active in Laser mode.
 - Releasing the button leaves the dot visible while the mouse remains in the eligible area. A click without movement produces no lasting annotation.
 - Keep the existing dot size, glow, and trail styling. Laser continues to replace the normal cursor over the eligible area; toolbar controls use the normal cursor.

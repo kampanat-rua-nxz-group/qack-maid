@@ -10,9 +10,10 @@
 //
 // The persistent dot (`laserDotPos`) and the fading trail (`laserTrailPoints`)
 // are tracked separately: mouse movement alone only ever moves the dot; a
-// trail sample is appended only while a left-button stroke is active. See
-// docs/specs/laser-pointer.md for the full behavior reference.
-const LASER_TRAIL_FADE_MS = 950; // ~1s, per spec assumption
+// trail sample is appended only while a left-button stroke is active. Samples
+// of the same stroke are joined into one continuous line; strokes are never
+// joined to each other. See docs/specs/laser-pointer.md for the full behavior reference.
+const LASER_TRAIL_FADE_MS = 2000; // per docs/specs/laser-pointer.md
 const LASER_COLOR_KEY = "qack-maid:laser-color";
 const LASER_COLOR_DEFAULT = "#dc2626";
 
@@ -59,7 +60,8 @@ laserColorEl.addEventListener("blur", () => {
 
 let laserCanvasEl = null;
 let laserCanvasCtx = null;
-let laserTrailPoints = []; // { x, y, t } in viewport (client) coordinates
+let laserTrailPoints = []; // { x, y, t, stroke } in viewport (client) coordinates
+let laserStrokeId = 0; // bumped on each stroke start; tags its trail samples
 let laserDotPos = null; // { x, y } in viewport coordinates; null hides the dot
 let laserStrokeActive = false; // true only between an eligible left-button press and its end
 let laserAnimHandle = null;
@@ -82,17 +84,25 @@ function drawLaserFrame() {
   laserCanvasCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
   laserTrailPoints = laserTrailPoints.filter((p) => now - p.t < LASER_TRAIL_FADE_MS);
   // Fading trail first, then the current dot on top at full opacity, so the
-  // dot never gets visually buried under a fresh trail sample at the same spot.
-  laserTrailPoints.forEach((p) => {
-    const age = now - p.t;
-    const alpha = Math.max(0, 1 - age / LASER_TRAIL_FADE_MS);
+  // dot never gets visually buried under a fresh trail segment at the same spot.
+  // Each segment joins two consecutive samples of one stroke and fades with
+  // its older end, so the tail disappears first.
+  laserCanvasCtx.lineWidth = 8;
+  laserCanvasCtx.lineCap = "round";
+  laserCanvasCtx.lineJoin = "round";
+  laserCanvasCtx.shadowBlur = 14;
+  for (let i = 1; i < laserTrailPoints.length; i++) {
+    const a = laserTrailPoints[i - 1];
+    const b = laserTrailPoints[i];
+    if (a.stroke !== b.stroke) continue;
+    const alpha = Math.max(0, 1 - (now - a.t) / LASER_TRAIL_FADE_MS);
     laserCanvasCtx.beginPath();
-    laserCanvasCtx.fillStyle = `rgba(${laserColorRgb}, ${alpha})`;
+    laserCanvasCtx.strokeStyle = `rgba(${laserColorRgb}, ${alpha})`;
     laserCanvasCtx.shadowColor = `rgba(${laserColorRgb}, ${Math.min(1, alpha + 0.2)})`;
-    laserCanvasCtx.shadowBlur = 14;
-    laserCanvasCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-    laserCanvasCtx.fill();
-  });
+    laserCanvasCtx.moveTo(a.x, a.y);
+    laserCanvasCtx.lineTo(b.x, b.y);
+    laserCanvasCtx.stroke();
+  }
   if (laserDotPos) {
     laserCanvasCtx.beginPath();
     laserCanvasCtx.fillStyle = `rgba(${laserColorRgb}, 1)`;
@@ -144,7 +154,7 @@ function handleLaserPointerMove(e) {
   laserDotPos = { x, y };
   if (laserStrokeActive) {
     if (e.buttons & 1) {
-      laserTrailPoints.push({ x, y, t: performance.now() });
+      laserTrailPoints.push({ x, y, t: performance.now(), stroke: laserStrokeId });
     } else {
       // Defensive: a release that never reached handleLaserPointerUp (e.g. it
       // happened before listeners were attached) still ends the stroke.
@@ -158,8 +168,9 @@ function handleLaserPointerDown(e) {
   if (!isLaserEligible(e.clientX, e.clientY)) return;
   e.preventDefault(); // avoid text selection while dragging a trail
   laserStrokeActive = true;
+  laserStrokeId += 1;
   laserDotPos = { x: e.clientX, y: e.clientY };
-  laserTrailPoints.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+  laserTrailPoints.push({ x: e.clientX, y: e.clientY, t: performance.now(), stroke: laserStrokeId });
 }
 
 function handleLaserPointerUp(e) {

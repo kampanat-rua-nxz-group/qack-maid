@@ -181,10 +181,10 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
     expect(await laserRegionAlpha(page, cx, cy, 14)).toBeGreaterThan(0);
     expect(await laserRegionAlpha(page, cx - 150, cy - 150, 10)).toBe(0); // no trail left behind
 
-    // Past both the 950ms trail lifetime and the 2s presentation idle
+    // Past both the 2s trail lifetime and the 2s presentation idle
     // timeout: the stationary dot isn't a trail sample and isn't tied to the
     // idle timer, so it must still be visible.
-    await page.waitForTimeout(2200);
+    await page.waitForTimeout(2300);
     expect(await laserRegionAlpha(page, cx, cy, 14)).toBeGreaterThan(0);
   });
 
@@ -198,7 +198,7 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
     await page.mouse.move(startX, y);
     await page.mouse.down();
     await page.mouse.move(startX + 60, y, { steps: 6 });
-    await page.waitForTimeout(1100); // let the earliest samples age out mid-drag
+    await page.waitForTimeout(2150); // let the earliest samples age out mid-drag
     await page.mouse.move(endX, y, { steps: 12 });
     await page.waitForTimeout(50);
 
@@ -208,10 +208,49 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
     expect(await laserRegionAlpha(page, endX, y, 14)).toBeGreaterThan(0);
 
     await page.mouse.up();
-    await page.waitForTimeout(1200); // past the 950ms fade
+    await page.waitForTimeout(2250); // past the 2s fade
 
     expect(await laserRegionAlpha(page, endX, y, 14)).toBeGreaterThan(0); // dot remains
     expect(await laserRegionAlpha(page, (startX + endX) / 2, y, 10)).toBe(0); // trail is gone
+  });
+
+  test("a fast drag draws a continuous line between sparse samples", async ({ page }) => {
+    await enterPresentation(page);
+    await switchToLaser(page);
+    const vp = page.viewportSize()!;
+    const startX = vp.width / 2 - 150, y = vp.height / 2;
+
+    await page.mouse.move(startX, y);
+    await page.mouse.down();
+    // Two moves → samples only at +150 and +300; nothing is sampled near +75.
+    await page.mouse.move(startX + 300, y, { steps: 2 });
+    await page.waitForTimeout(30);
+
+    expect(await laserRegionAlpha(page, startX + 75, y, 6)).toBeGreaterThan(0);
+    await page.mouse.up();
+  });
+
+  test("separate strokes are not joined to each other", async ({ page }) => {
+    await enterPresentation(page);
+    await switchToLaser(page);
+    const vp = page.viewportSize()!;
+    const x = vp.width / 2 - 100, y1 = vp.height / 2 - 120, y2 = vp.height / 2 + 120;
+
+    await page.mouse.move(x, y1);
+    await page.mouse.down();
+    await page.mouse.move(x + 200, y1, { steps: 4 });
+    await page.mouse.up();
+
+    await page.mouse.move(x, y2);
+    await page.mouse.down();
+    await page.mouse.move(x + 200, y2, { steps: 4 });
+    await page.waitForTimeout(30);
+
+    // A join would run from the first stroke's end (x+200, y1) to the
+    // second's start (x, y2), crossing this midpoint.
+    expect(await laserRegionAlpha(page, x + 100, (y1 + y2) / 2, 8)).toBe(0);
+    expect(await laserRegionAlpha(page, x + 100, y2, 8)).toBeGreaterThan(0);
+    await page.mouse.up();
   });
 
   test("right- and middle-button drags draw no trail", async ({ page }) => {
@@ -272,7 +311,7 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
     // Let any trail drawn en route to the toolbar (the stroke was still
     // active until it actually crossed the toolbar boundary) finish fading,
     // so it can't be mistaken for a resumed trail below.
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(2150);
 
     // Returning to the eligible area with the button still (virtually) held
     // shows only the dot again — the interrupted stroke does not resume.
@@ -300,7 +339,7 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
       // exact spot before the interrupt is left to finish its own fade
       // (per spec), so wait past that before asserting the spot is clear —
       // that's what proves the dot itself isn't still being drawn here.
-      await page.waitForTimeout(1100);
+      await page.waitForTimeout(2150);
       expect(await laserRegionAlpha(page, cx + 30, cy, 14)).toBe(0);
 
       await page.mouse.up(); // release the still-down virtual button
