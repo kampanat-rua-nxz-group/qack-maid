@@ -8,7 +8,7 @@ Offline Mermaid diagram renderer. Paste Mermaid source, get a live preview, expo
 
 ## What it does
 
-- Single static HTML file, Mermaid.js vendored locally — works fully offline
+- Plain static HTML/CSS/JS files with no build step, Mermaid.js vendored locally — works fully offline
 - Live preview as you type, with an inline error banner on invalid syntax
 - Diagram theme picker (auto/default/dark/forest/neutral) plus a custom mode with color pickers
 - Independent preview background control (auto/light/dark) to check a diagram against either backdrop
