@@ -61,4 +61,3 @@ When changing export, clipboard, or branding code, preserve these details:
 ## Task-specific references
 
 - For domain documentation work, keep vocabulary in `CONTEXT.md`, decisions in `docs/adr/`, specifications in `docs/specs/`, and implementation plans in `docs/plans/`. Record new terms when their meaning is settled.
-- For GitHub issue operations, triage, or task dependencies, read [issue tracker conventions](docs/agents/issue-tracker.md).
