@@ -6,7 +6,8 @@ Shared instructions for agents working on qack-maid. `CLAUDE.md` imports this fi
 
 qack-maid is an offline Mermaid diagram editor deployed as static files to GitHub Pages.
 
-- Keep application markup, styles, and logic in `index.html`, with Mermaid loaded from the local `mermaid.min.js`. The app must work without a build step or application server.
+- `index.html` holds markup only. Styles live in `css/`, and logic lives in classic scripts under `js/`, one file per feature, loaded by `<script src>` tags after the local `mermaid.min.js` (see [ADR-0005](docs/adr/0005-split-static-files-no-build.md)). The app must work without a build step or application server, including when opened via `file://`, so never use `type="module"`.
+- Script order in `index.html` is a contract: a file's load-time code may use only files loaded before it. Globals shared by several features belong in `js/shared.js`. New code goes in the feature file that owns it. Keep files at or under 300 lines.
 - Keep diagram data in the browser. No application network calls, external assets, telemetry, or backend persistence.
 - Treat `mermaid.min.js` as an opaque dependency; replace it wholesale when upgrading rather than editing it.
 - Keep development tooling under `tests/`, separate from the deployed app's runtime dependencies. See [ADR-0004](docs/adr/0004-dev-only-e2e-tooling.md) for the testing exception to the single-file constraint.
@@ -15,7 +16,7 @@ qack-maid is an offline Mermaid diagram editor deployed as static files to GitHu
 
 1. Read [CONTEXT.md](CONTEXT.md) and use its domain vocabulary and the [ADRs](docs/adr/) relevant to the change. Surface any conflict with an accepted decision explicitly.
 2. For feature work, read the relevant specification in `docs/specs/` and implementation plan in `docs/plans/`. Check their status: planned behavior may not yet exist in code.
-3. Inspect the relevant functions in `index.html` and existing tests. Use symbols rather than fixed line ranges to locate code.
+3. Inspect the relevant functions in `js/` (and markup in `index.html`) and existing tests. Use symbols rather than fixed line ranges to locate code.
 
 ## Running and validating
 

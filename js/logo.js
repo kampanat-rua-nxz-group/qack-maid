@@ -1,0 +1,39 @@
+// QACK logo glyph shared by the footer badge (CSS mask) and both exports
+// (tinted canvas). Load time: sets the --qack-logo CSS variable.
+
+// The QACK Skills glyph, stored once here and shared by the footer badge and
+// both exports. The PNG carries the shape in its alpha channel only (RGB is
+// flat black), so it can be recolored freely: the footer paints it via a CSS
+// mask, exports repaint it through an offscreen canvas.
+const QACK_LOGO_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANcAAAAwCAYAAACCPO+PAAANfklEQVR42uWdabAcVRWAv5l5gEJAlmhETSSFgrKKkVUKVCCyUyqIslQhO4IKUoggIkKhFKCySYELixRarCIFigiRpUiCSUBQECIJCBKMYCABTHhvpscffU69w3Xmvb5L98x7dFXXJPOmb5977tnvOefW8L9qQANomu+mANvIvYn8f21gJfn7G8BLwDPAo8Bs4EFgsRljAGgBbfr7qsnnmsDxwHfku36Guy4wtsx3GwPbAlsBHwLeC7xD1rYNvC7rswB4GJgJzJPv9Wo4Y/pc+uyWwJ3yzprnGJnMbT6w9Shr1pb3bCnvbZSA50zetTJwaghC9JoIHAHcAbwswPvci4GbgC8AE7q8ox8vhe94mcfWfQx3zYFrA+A0EWzLA9ZsAXA58EnnHfUIPG4XAId7P1lQIM5O8K4i95Ehkg/gPcA5whx2wJZos5ZwsHu3zG8y59mngW+K5HTf128aoA5MEk3cFkKt9SFzWXimAb8CVgSsWVNul4AeBL4YIRT199uad2Wet9LSYwWZa6b8fijgXd3utozXBpYA033w0TCE9XXg3wbBzS7MUuTOOizcQuDgPtZiCs9PBN435POQPoN3wFgXlzo4HjKE7LtmLfO8fnefaB8l4loAc7Uj4GkDj3swV7uLsAi9h4xW38zBf6FF2hC41xkwSwhgywDZBm4E3uUDaIWMtYURCir1nwfW6AONazXoHuLjWkGYes2a5t9nmrnX3yLMpTQ7Syw6b8baS9RdGUw1EpMtFGe7XxhMieGPzgIpvOf0WHtZ3+e0DgRQ1m2Z9g5gnYJ4GMvMlRm83gSs6rP2SsyHOUhsV3Qr4K8Bu/YBgynS9u2AC/UXlgMfiHDwU2msywyMrQrXbFA+/yrR4tGIbawyV2bee6Hjj3szVqviRXKZedDXSSxJI7xd7OqsAz4U1pt7BKeu2c8MzrIerJkKxb8bM6k+jpjLrvuJvsE3nfCeJdnpbU9nWn/7KrC5j4QoQWt9a5SF0e93qpjBlLG+52iQXt3KYA8B645AfGONufSZ5cD+Bve1omFmgPWBpV0kdArGCp3UU+Qbt1UGDfRd7wOWjSIYdG5/FsJpVACnEuj+fcJYrpVz0AiCZiwxlwqMfwHb+7opNUMQM0vysXS8GQxvOmeek/tlxVpB33NNQZzo34+uAE5l/CnAKxHh9RR35gROfgd81CHsscpcOq/HyDfhvf1/negJJUWYVKLeQJ4SNTdAkylMe1XEYDr+NmZPrqjkXkye/lUv0YxV+G6tKCo4mkBRIt+vA1GPVeZSnN5toqADIRJwkmiU1BJQGet6g9ALAghC4ZoPrFKBeahmne+C6O8uKFEI6Ji79iCS2ykE/zJ5Lt2qTibLWA3FW2H6C5Mj2wh1iM8tQQJajVU3BLtHIFHo748oOTyvSDwwAE71VQeBjUpKjVLineOhVcvYPG4DVwJTA7JqqmQuZfR7C6ynjTWcHZk/CWLCvOzkS6VmrLpB6EQJmvgiVbXX4yZSk1p7KSJXB54NDOzo4v22BO2lY+0UESRK4VfdB+zgCOlaYG5hVcx1zyjM1TKwHO1YMMHXkYnNi0GTxlR3OF8/ZwS+UxGwc0lml453ViRO9LndE8Op41zfgeCr8KueBr7kwBOTFd8vzKXfLZOtqGSW0d0JzYuRGMsC/O1AM1RTsK4owTRUeKeS1y3F+J9Wy66cyEesRWr+mND667KXtlaXcpaxzFxKg/8gryBIRldTZJM2xUJ1YqxaF6RuH2jW6O+fBd5WICoVqhVSaHJ9/oRECzYwQhpWahPQjn0D8OHE1Qr9wlzKWHOAyakF9gGJbPdBk8jYGMEJVEZYDXghELH6+2klLPaOCQlX/bUl5Fn+saF5XfRLSjIJ3THnArtF+FX9zlw611vFx07uZlycgJiKMpaL2Jsjd8xTRQ1rJuAyL7FW0HEuT7B4StizStBcdqwXgOMMXhuk36/rJXMNmfle6lkq43XdE6m5hkzSaqNg2FIX7dgIv6sN/CixuXV4CURri0I/EsFgSgATyNNwUvlbLSdJ+iLg3RUUrPaKuazJe0rZle8LIiY3GMBYdrKbBAYNhhJmoSvMa4rELqMKwKZ+hcKrOFvP4D1LqK1uZzhlqYoSn14w112mgvygVKH2ka4lgZMLZSwrhQfIMy58NacSxb0J1Lku8vklpxEpzJ8NZLC6qYROpVHbwBMSIKEKYusxc80lrxHcsaoawdciNNavAxjLlYw/D0yF0ghPTLRQzYENyZu3lJn8qmM/RV4bVu/Bpqtb8X2Ksx71HpTyVJX+1CAvJN2kKsYKQeYQea7VLSLxtFdbFrHHRo96T2g/u/PI8xXbJcJRFxytT96WLetxS4AaeYbFJ+S7Zh933SJhX8FmlS/0Kf+wGmsgMudKn3u/afmVVWgWKmF/usLkVw3NLyVvwumDv9Rmob2vIW9RUGXXrV6YhfPIMzC2r0p7LSw4OWWsWxIwlut7zQ3MPA8NaCjsKwF/KakwdLRgzNWesCuupyYMaFgzeClwOsP7PWX3AullQGM5eTPa1Ht3QaF4/dttQpCpEK+S4zxPv2vIKesYCHzvcT0q2dByDZ9uvWWF4t35z+f/m33WxlkoXp87qexQ/CUFMoUz4CoHMQMJEK8I3s0zYhiziaxZEhPJu+a2IpqatiKJ+QFP7eW2ZW6WmJ3xB/JCUUqS8P2yiXxRZAxixJfOGiWgUDMA7Ss+Ustp3VU30aaap4MJ8CcxS+oFDzTQhXlIPtueJmEGnEFeXZoFEk3NA95uhxBsR55+VvRgADvvduLDH2qyhio0dhbmv4y8h4gSY7/38vdZuybwFXEvVisjyDTFhOOLSI/XBOlnywKs1YUIBjw3lO8qKI1jEndV025qpFdIXmNGvj94VqTUzcgzsScUFEyqoferwJy1Y79I3sp8FY9K47GWuDsbz665Ra8ZBUpOujXkXyy+2InAx8wCuETRzYTUiZxa0O/SkpMrAxChC3pnghZb58lYDyQY68yCc1H8vVOiXu0KmtLYeT0C7J3IH+vHkpOFDLfwS8ZgR3sQiDLhUBefY4GEdg8BPthlopbZfJGs75weWFa+dwQzqLZ5geEGNFt2KH339dteJ09rqnn0nrixwmJJV/DewvChA6GE2K/Fkq+QuMvzOjJoFmgmNbss8qD4BxcC+/DmhFDXhJxAfqBBu0BvwCdM1LKI5FSiXYX8LKcssofioTLuyrw5yyRGe13n2WN9l4rL/N3iyRXkKWMTA4sn+7HM3x4scXiKaKly5w8S5da1nGiMvV8hP8jgdPLsgNUdWG4YBQYd8zBPyaK/OykBE8w15Snqe6wb2TtQx96hIIPpe+f2oEGNi7/ngKMMATf68JQTnwY1VoB8N3bPTx3pdSVilzK/LhuF2Z6XSM1XyTslfXkE5rKBhLU9Qqd2fmUwQFmMW4Qwd+9hazXXJJ1l+poUCd2PldZqVxhYgyKJ+tCJJWeGWxMy64Co50dBsjLGTIq3tm6UbLqVZXIWZbDbe8hgnfyxa7v42mO5Kejvhd6CGMy2s36w4ly7piczN02fDgpWPE8b4cjYFEGHVMGSFrCooODQv69XoI991f7YMjH9J43gF4+1dtaPkCddBwU66uZQ6mU9ODooC+gdP5qP0vCwtWPD5SnC/Dqvcz2114F9chCDey7YhePsIIZFAm8Qg+mE9ynxCKFUya+ZZA90m6jO5fMJQu9FNnr1fZtGnDusWnKFCDmflgnn9uERQuuMwyOE/gt8LjQlTBfrqB6dUOgz0fu7mIZKlKuSN7GM9YMO8NQkP06wiL8p+M6aWbOresxgdjN28jg//O5roUm/A87mci8d5pBKZF240xMQuU9ybaek4Bim3sWDwRrO6ZK9Orb1bwz3jh/vx7aeH5r0qwz2GQlhV3HgeOZpFnaS7vbcqlcjQ+++ZSGpyln0mUc9EqKtCXlGxQeOK7HdRd6f8a104Ph1DOe4NkIYbCOTQ1cGk9n0oczD/Di2g8+lE7w2AXFfHYC0ToWYMTAc6+FA1xy/+Z9OVDYr8bST73vuB41l5nLp8H6JjAYfjNcAvgH8p0MybxbZz8/neNemOUJzLSfUq7BuF4HEmFJ8F2fTE4TmXzSBgbqnUJwE/NTB51BkDZtrbs40UVsfXI0H5rIMNh/YOPSAPL0mAz8Un6KTJGt1CKtnhmg7MeNzwMligi3pQgSuBtizi0kIccWEiqxTI5M3Fa7bIsyzIaegLyR3D2Ar8tSyIc81a40gAOcBB3cQbLzFmMuu00vAp0I3m+0Dk4BjxM5eGgDQi+IzHQSsYcbdnPzQ7m7PLaJz7z/992EJSjGeJKz9WadN3g0kfBtrgm0R4Di7ybQbiT82j7wxpi8cz0g60HQHLymOEIq5n/Cs4M5KjBe0kCOWahGnGtoWVVMFSduS94WbLCab1natEHPyGXHSZ5Pnoi3qYMo0JYR+DHlR4AayEM9Jqs/F4ktoNa/bX2KOmHPtgEXP5JlDGT5mtgVRBYEtiSodI3PzlWgtwc3twP4CXyuQ0S2+NgM+Tl4ys6HgbA3yTP+WCITF5CVED4vUnyMJBu78YnCzNcP1hLWA9WoIc00r0EJvhryvWUJFteJXS6pO/h/+hJ1nmQz7NgAAAABJRU5ErkJggg==";
+const QACK_LOGO_RATIO = 215 / 48; // intrinsic width / height
+document.documentElement.style.setProperty("--qack-logo", `url("${QACK_LOGO_PNG}")`);
+
+let qackLogoPromise = null;
+function loadQackLogo() {
+  if (!qackLogoPromise) {
+    qackLogoPromise = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = QACK_LOGO_PNG;
+    });
+  }
+  return qackLogoPromise;
+}
+
+// Repaints the alpha-only glyph in `color` and returns the canvas. Exports need
+// a solid colored copy: SVG <mask> alpha semantics vary across viewers, and a
+// black glyph would vanish on a dark background.
+function tintedLogoCanvas(logo, heightPx, color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(heightPx * QACK_LOGO_RATIO);
+  canvas.height = Math.round(heightPx);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(logo, 0, 0, canvas.width, canvas.height);
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+

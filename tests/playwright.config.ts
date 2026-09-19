@@ -18,7 +18,11 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `python3 -m http.server ${PORT} --directory ${APP_ROOT}`,
+    // Same stdlib server as `python3 -m http.server`, but with a listen
+    // backlog of 128 instead of socketserver's default 5: parallel workers
+    // each request every css/ and js/ file at once, and an overflowing
+    // backlog resets connections (ERR_CONNECTION_RESET -> missing script).
+    command: `python3 -c "import functools, http.server as s; s.ThreadingHTTPServer.request_queue_size = 128; s.test(HandlerClass=functools.partial(s.SimpleHTTPRequestHandler, directory='${APP_ROOT}'), ServerClass=s.ThreadingHTTPServer, port=${PORT}, bind='127.0.0.1')"`,
     url: `http://127.0.0.1:${PORT}/index.html`,
     reuseExistingServer: !process.env.CI,
     timeout: 20_000,

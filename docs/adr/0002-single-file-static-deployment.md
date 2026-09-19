@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0005](0005-split-static-files-no-build.md).
 
 ## Context
 

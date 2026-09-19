@@ -1,0 +1,84 @@
+/* Presentation mode: fullscreen wrapper, idle chrome, spotlight, toolbar,
+   Laser cursor and canvas. Loads after app.css, before chrome.css. */
+
+  .preview-wrap.presenting {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    padding: 0;
+  }
+  .preview-wrap.presenting.idle {
+    cursor: none;
+  }
+  /* Spotlight (issue #3): dim every highlightable element except the pinned
+     or hovered one, and outline that one. Hit-area clones stay invisible
+     regardless of dim/focus state. */
+  .presentation-dim {
+    opacity: 0.25;
+  }
+  .presentation-focus {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .presentation-hit-area {
+    /* !important: some diagrams' own inlined stylesheet carries an
+       ID-scoped catch-all rule for the bare tag (e.g. sequence diagrams'
+       `#graph-N line{stroke-width:2px;...}`, meant for actor-man icons)
+       that would otherwise outrank this plain class selector on
+       specificity even after Mermaid's own classes are stripped. */
+    stroke: transparent !important;
+    stroke-width: 12 !important;
+    fill: none !important;
+    pointer-events: stroke !important;
+  }
+  .presentation-toolbar {
+    display: none;
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10000;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .preview-wrap.presenting .presentation-toolbar {
+    display: flex;
+  }
+  .preview-wrap.presenting.chrome-visible .presentation-toolbar {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Active tool (issue #7): visibly marked via aria-pressed. */
+  .presentation-tool[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .presentation-toolbar input[type="color"] {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+  }
+  /* Owner decision (issue #7): while lasering, the OS cursor stays hidden
+     over the diagram (the canvas dot replaces it) regardless of the idle
+     timer, but the toolbar itself always shows the normal cursor so its
+     buttons stay clickable/discoverable. */
+  .preview-wrap.presenting.laser-active {
+    cursor: none;
+  }
+  .preview-wrap.presenting.laser-active .presentation-toolbar,
+  .preview-wrap.presenting.laser-active .presentation-toolbar * {
+    cursor: default !important;
+  }
+  #laser-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    pointer-events: none;
+  }

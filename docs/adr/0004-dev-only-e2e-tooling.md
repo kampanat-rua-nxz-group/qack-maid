@@ -4,6 +4,8 @@
 
 Accepted
 
+Note: the single-file constraint referenced below is superseded by [ADR-0005](0005-split-static-files-no-build.md); the dev-only tooling boundary still applies.
+
 ## Context
 
 ADR-0002 fixes the *deployed artifact* as `index.html` + vendored `mermaid.min.js`, with no `package.json`, bundler, or build step. Presentation mode (and future interactive features) is hard to verify by hand alone — fullscreen transitions, keyboard focus rules, and viewport-fit math all benefit from an automated e2e check. Playwright is the natural tool for that, but it needs its own `package.json` and `node_modules`.
