@@ -1,3 +1,4 @@
+import { previewSvgSnapshot } from "./support/preview-snapshot";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 // Covers presentation-mode issue #7 (laser trail pointer while presenting)
@@ -487,8 +488,8 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
     await expect(page.locator(".preview-wrap")).not.toHaveClass(/presenting/);
   });
 
-  test("exit removes the canvas overlay; SVG/PNG export are unaffected (AC 10)", async ({ page }) => {
-    const preSvg: string = await page.evaluate(async () => (window as any).buildExportSvgMarkup());
+  test("exit removes the canvas overlay; Preview serializes unchanged (AC 10)", async ({ page }) => {
+    const preSvg: string = await page.evaluate(previewSvgSnapshot);
 
     await enterPresentation(page);
     await switchToLaser(page);
@@ -513,7 +514,7 @@ test.describe("presentation mode — laser dot and trail (behavior spec)", () =>
     });
     expect(liveState).toEqual({ hitAreas: 0, dim: 0, focus: 0 });
 
-    const postSvg: string = await page.evaluate(async () => (window as any).buildExportSvgMarkup());
+    const postSvg: string = await page.evaluate(previewSvgSnapshot);
     expect(postSvg).toBe(preSvg);
   });
 });

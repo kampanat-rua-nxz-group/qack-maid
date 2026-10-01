@@ -1,3 +1,4 @@
+import { previewSvgSnapshot } from "./support/preview-snapshot";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 // Covers presentation-mode issue #3 (spotlight nodes and edges in
@@ -139,14 +140,12 @@ test.describe("presentation mode — Esc two-step (owner decision 2026-09-16)", 
 });
 
 test.describe("presentation mode — spotlight teardown (AC 10)", () => {
-  test("after exit, SVG and PNG exports contain no dim classes or hit-area paths", async ({ page }) => {
+  test("after exit, Preview SVG and PNG export contain no dim classes or hit-area paths", async ({ page }) => {
     await forceFullscreenFallback(page);
     await page.goto("/index.html");
     await expect(page.locator("#preview svg")).toBeVisible();
 
-    const preSvg: string = await page.evaluate(async () => {
-      return await (window as any).buildExportSvgMarkup();
-    });
+    const preSvg: string = await page.evaluate(previewSvgSnapshot);
 
     await enterPresentation(page);
     await nodeLocator(page, "A").hover();
@@ -166,9 +165,7 @@ test.describe("presentation mode — spotlight teardown (AC 10)", () => {
     });
     expect(liveState).toEqual({ hitAreas: 0, dim: 0, focus: 0 });
 
-    const postSvg: string = await page.evaluate(async () => {
-      return await (window as any).buildExportSvgMarkup();
-    });
+    const postSvg: string = await page.evaluate(previewSvgSnapshot);
     expect(postSvg).toBe(preSvg);
     expect(postSvg).not.toContain("presentation-dim");
     expect(postSvg).not.toContain("presentation-focus");

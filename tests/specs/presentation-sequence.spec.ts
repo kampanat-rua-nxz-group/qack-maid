@@ -1,3 +1,4 @@
+import { previewSvgSnapshot } from "./support/preview-snapshot";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 // Covers presentation-mode issue #5 (spotlight and stepping in sequence
@@ -192,13 +193,11 @@ test.describe("presentation mode — sequence stepping (AC 6 for sequence)", () 
 });
 
 test.describe("presentation mode — sequence teardown (AC 10 for sequence)", () => {
-  test("after exit, SVG export is byte-identical to a pre-presentation export; live DOM is clean", async ({ page }) => {
+  test("after exit, Preview SVG is byte-identical to its pre-presentation serialization; live DOM is clean", async ({ page }) => {
     await forceFullscreenFallback(page);
     await loadSequenceExample(page);
 
-    const preSvg: string = await page.evaluate(async () => {
-      return await (window as any).buildExportSvgMarkup();
-    });
+    const preSvg: string = await page.evaluate(previewSvgSnapshot);
 
     await enterPresentation(page);
     await topGroupLocator(page, "A").hover();
@@ -220,9 +219,7 @@ test.describe("presentation mode — sequence teardown (AC 10 for sequence)", ()
     });
     expect(liveState).toEqual({ hitAreas: 0, dim: 0, focus: 0 });
 
-    const postSvg: string = await page.evaluate(async () => {
-      return await (window as any).buildExportSvgMarkup();
-    });
+    const postSvg: string = await page.evaluate(previewSvgSnapshot);
     expect(postSvg).toBe(preSvg);
   });
 });
@@ -282,8 +279,8 @@ end`);
     await expect(page.locator("#preview .presentation-focus, #preview .presentation-dim")).toHaveCount(0);
   });
 
-  test("alt pin survives hover, stepping stays on participants, and exit restores the SVG", async ({ page }) => {
-    const original = await page.evaluate(() => (window as any).buildExportSvgMarkup());
+  test("alt pin survives hover, stepping stays on participants, and exit restores the Preview SVG", async ({ page }) => {
+    const original = await page.evaluate(previewSvgSnapshot);
     await enterPresentation(page);
     const outer = frame(page, "outer");
     await outer.locator(".labelText").click();
@@ -299,7 +296,7 @@ end`);
     await expect(page.locator("#preview .presentation-focus")).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(page.locator(".preview-wrap")).not.toHaveClass(/presenting/);
-    expect(await page.evaluate(() => (window as any).buildExportSvgMarkup())).toBe(original);
+    expect(await page.evaluate(previewSvgSnapshot)).toBe(original);
     await expect(page.locator("#preview .presentation-focus, #preview .presentation-dim, #preview .presentation-hit-area")).toHaveCount(0);
   });
 });

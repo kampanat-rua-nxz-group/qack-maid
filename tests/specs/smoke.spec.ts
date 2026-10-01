@@ -69,17 +69,6 @@ test.describe("smoke", () => {
     expect(await wrap.getAttribute("data-preview")).toBeNull();
   });
 
-  test("Download SVG saves stamped markup", async ({ page }) => {
-    const downloadPromise = page.waitForEvent("download");
-    await runExportAction(page, "download-svg");
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe("diagram.svg");
-    const markup = fs.readFileSync(await download.path(), "utf8");
-    expect(markup).toContain("<svg");
-    expect(markup).toContain("Powered by");
-    await expect(page.locator("#toast")).toHaveText("SVG downloaded");
-  });
-
   test("Download PNG saves a valid PNG file", async ({ page }) => {
     const downloadPromise = page.waitForEvent("download");
     await runExportAction(page, "download-png");
@@ -90,14 +79,42 @@ test.describe("smoke", () => {
     expect(bytes.length).toBeGreaterThan(1000);
   });
 
-  test("Copy SVG puts stamped markup on the clipboard", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await runExportAction(page, "copy-svg");
-    await expect(page.locator("#toast")).toHaveText("SVG markup copied");
-    const text = await page.evaluate(() => navigator.clipboard.readText());
-    expect(text).toContain("<svg");
-    expect(text).toContain("Powered by");
+  test("Cmd/Ctrl+S downloads the PNG", async ({ page }) => {
+    const downloadPromise = page.waitForEvent("download");
+    await page.keyboard.press("Control+s");
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("diagram.png");
+    await expect(page.locator("#toast")).toHaveText("PNG downloaded");
   });
+
+  test("the Export menu offers only PNG actions", async ({ page }) => {
+    const actions = await page.locator("[data-export]").evaluateAll((els) =>
+      els.map((el) => (el as HTMLElement).dataset.export),
+    );
+    expect(actions).toEqual(["download-png", "copy-png"]);
+  });
+
+  for (const bg of ["light", "dark"]) {
+    test(`PNG export is opaque and filled with the ${bg} Preview background`, async ({ page }) => {
+      await page.selectOption("#preview-bg-select", bg);
+      await page.selectOption("#theme-select", bg === "dark" ? "dark" : "default");
+      await page.waitForTimeout(RENDER_SETTLE_MS);
+      const result = await page.evaluate(async () => {
+        const blob: Blob = await (window as any).buildExportPngBlob();
+        const bitmap = await createImageBitmap(blob);
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(bitmap, 0, 0);
+        const corner = Array.from(ctx.getImageData(0, 0, 1, 1).data);
+        const wrapBg = getComputedStyle(document.querySelector(".preview-wrap")!).backgroundColor;
+        return { corner, wrapBg };
+      });
+      const expected = (result.wrapBg.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      expect(result.corner).toEqual([...expected, 255]);
+    });
+  }
 });
 
 // A split that breaks load order surfaces as an uncaught ReferenceError; a bad
