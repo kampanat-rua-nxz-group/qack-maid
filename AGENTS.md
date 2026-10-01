@@ -52,11 +52,11 @@ These commands also run from `tests/`; select the spec appropriate to the change
 When changing export, clipboard, or branding code, preserve these details:
 
 - Export uses Preview. Download and Copy share the same artifact builders; delivery is their only difference.
-- SVG and PNG exports have transparent backgrounds and include the attribution stamp. Remove diagram-level backgrounds while preserving backgrounds needed for readable labels.
+- PNG is the only export format ([ADR-0006](docs/adr/0006-png-only-export-with-preview-background.md)). The PNG is filled with the Preview background so it reads as on screen, and includes the attribution stamp.
 - A stamp failure must not prevent export. Stamp color follows Preview background contrast, independently of the diagram theme.
 - Copy PNG passes the pending blob promise to `ClipboardItem` during the click handler. Awaiting rasterization first loses Safari's clipboard user-activation window.
-- Preserve Copy SVG's fallback for environments without the Clipboard API.
-- The embedded logo stores its shape in the PNG alpha channel. Keep CSS masking for the footer and canvas tinting for exports; SVG mask behavior differs across viewers.
+- Cmd/Ctrl+S downloads the PNG.
+- The embedded logo stores its shape in the PNG alpha channel. Keep CSS masking for the footer and canvas tinting for exports.
 
 ## Task-specific references
 

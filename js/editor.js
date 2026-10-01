@@ -18,7 +18,7 @@ document.addEventListener("keydown", (e) => {
     render();
   } else if (e.key.toLowerCase() === "s") {
     e.preventDefault();
-    runExport("download-svg");
+    runExport("download-png");
   }
 });
 
