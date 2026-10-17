@@ -5,3 +5,5 @@ tests/test-results/
 tests/playwright-report/
 tests/.cache/
 test-results/
+.serena/
+.claude/.headroom*
