@@ -188,7 +188,18 @@ test.describe("presentation mode — arrow keys inactive outside presenting/unma
     });
 
     // class diagram has no PRESENTATION_HIGHLIGHT_MAP entry (out of scope)
-    await page.selectOption("#examples", "class");
+    await page.fill(
+      "#source",
+      `classDiagram
+    class Animal {
+      +String name
+      +move()
+    }
+    class Dog {
+      +bark()
+    }
+    Animal <|-- Dog`,
+    );
     await expect(page.locator("#preview svg")).toBeVisible();
 
     await enterPresentation(page);

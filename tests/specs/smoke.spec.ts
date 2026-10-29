@@ -36,13 +36,6 @@ test.describe("smoke", () => {
     await expect(page.locator("#source")).toHaveValue(invalid);
   });
 
-  test("choosing an Example replaces Source and renders it", async ({ page }) => {
-    await page.selectOption("#examples", "sequence");
-    await expect(page.locator("#source")).toHaveValue(/^sequenceDiagram/);
-    await expect(page.locator('#preview svg[aria-roledescription="sequence"]')).toBeVisible();
-    await expect(page.locator("#examples")).toHaveValue("");
-  });
-
   test("Format reindents Source and drops blank lines", async ({ page }) => {
     await page.fill("#source", "flowchart TD\n\n      A --> B\nB --> C\n");
     await page.click("#format");
@@ -73,7 +66,7 @@ test.describe("smoke", () => {
     const downloadPromise = page.waitForEvent("download");
     await runExportAction(page, "download-png");
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe("diagram.png");
+    expect(download.suggestedFilename()).toBe("untitled.png");
     const bytes = fs.readFileSync(await download.path());
     expect([...bytes.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     expect(bytes.length).toBeGreaterThan(1000);
@@ -83,7 +76,7 @@ test.describe("smoke", () => {
     const downloadPromise = page.waitForEvent("download");
     await page.keyboard.press("Control+s");
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toBe("diagram.png");
+    expect(download.suggestedFilename()).toBe("untitled.png");
     await expect(page.locator("#toast")).toHaveText("PNG downloaded");
   });
 

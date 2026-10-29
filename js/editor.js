@@ -1,9 +1,10 @@
 // Source editing: debounced Render, Cmd/Ctrl+Enter and Cmd/Ctrl+S shortcuts,
-// mobile tabs, splitter, Example select, Format.
-// Load time needs: shared.js. Runtime calls: render(), runExport().
+// mobile tabs, splitter, Format.
+// Load time needs: shared.js. Runtime calls: render(), runExport(), autosaveSource().
 
 let debounceTimer;
 sourceEl.addEventListener("input", () => {
+  autosaveSource();
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(render, 250);
 });
@@ -69,14 +70,6 @@ splitterEl.addEventListener("dblclick", () => {
   localStorage.setItem(SPLIT_KEY, 50);
 });
 
-examplesEl.addEventListener("change", () => {
-  const key = examplesEl.value;
-  if (!key) return;
-  sourceEl.value = EXAMPLES[key];
-  examplesEl.value = "";
-  render();
-});
-
 function formatMermaid(code) {
   const lines = code
     .split("\n")
@@ -97,6 +90,7 @@ function formatMermaid(code) {
 
 document.getElementById("format").addEventListener("click", () => {
   sourceEl.value = formatMermaid(sourceEl.value);
+  autosaveSource();
   render();
 });
 

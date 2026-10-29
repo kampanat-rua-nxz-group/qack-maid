@@ -10,8 +10,38 @@ import { test, expect, type Page } from "@playwright/test";
 // svg sizing) rather than `document.fullscreenElement`, so they pass whether
 // the native Fullscreen API engages or the CSS fallback overlay takes over.
 
+const SOURCES: Record<string, string> = {
+  class: `classDiagram
+    class Animal {
+      +String name
+      +move()
+    }
+    class Dog {
+      +bark()
+    }
+    Animal <|-- Dog`,
+  er: `erDiagram
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE_ITEM : contains
+    CUSTOMER {
+        string name
+        string email
+    }`,
+  state: `stateDiagram-v2
+    [*] --> Idle
+    Idle --> Running : start
+    Running --> Idle : stop
+    Running --> [*]`,
+  gantt: `gantt
+    title Project
+    dateFormat  YYYY-MM-DD
+    section Phase 1
+    Task A :a1, 2026-01-01, 5d
+    Task B :after a1, 3d`,
+};
+
 async function selectExample(page: Page, key: string) {
-  await page.selectOption("#examples", key);
+  await page.fill("#source", SOURCES[key]);
   await page.waitForTimeout(400); // debounce (250ms) + render
 }
 
@@ -53,7 +83,7 @@ test.describe("presentation mode", () => {
     await expect(page.locator("#zoom-level")).toHaveText(zoomedLabel!);
 
     // Enter again via the F key.
-    await page.click("body");
+    await page.click("h1");
     await page.keyboard.press("f");
     await page.waitForTimeout(200);
     await expect(page.locator(".preview-wrap")).toHaveClass(/presenting/);

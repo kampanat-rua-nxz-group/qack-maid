@@ -40,7 +40,7 @@ function requirePreview() {
 const EXPORT_ACTIONS = {
   "download-png": async () => {
     requirePreview();
-    downloadBlob(await buildExportPngBlob(), "diagram.png");
+    downloadBlob(await buildExportPngBlob(), kebabFileName(openDiagram.name));
     return "PNG downloaded";
   },
   "copy-png": async () => {

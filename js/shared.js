@@ -1,15 +1,20 @@
 // Shared globals, loaded first: localStorage keys, DOM lookups used by several
 // features, and presentation state read outside presentation/.
 
-const STORAGE_KEY = "qack-maid:source";
+const LIBRARY_KEY = "qack-maid:diagrams";
+const DIAGRAM_KEY_PREFIX = "qack-maid:diagram:";
+const OPEN_KEY = "qack-maid:open";
+const SIDEBAR_KEY = "qack-maid:sidebar-collapsed";
+const LEGACY_SOURCE_KEY = "qack-maid:source"; // read once for migration
 const THEME_KEY = "qack-maid:theme";
 const PREVIEW_BG_KEY = "qack-maid:preview-bg";
 const SPLIT_KEY = "qack-maid:split";
 
+const STORAGE_FULL_TEXT = "Storage is full. Delete diagrams you no longer need.";
+
 const sourceEl = document.getElementById("source");
 const previewEl = document.getElementById("preview");
 const errorEl = document.getElementById("error-banner");
-const examplesEl = document.getElementById("examples");
 const themeSelectEl = document.getElementById("theme-select");
 const colorRowEl = document.getElementById("color-row");
 const colorPrimaryEl = document.getElementById("color-primary");

@@ -8,19 +8,11 @@
 <link rel="stylesheet" href="css/app.css" />
 <link rel="stylesheet" href="css/presentation.css" />
 <link rel="stylesheet" href="css/chrome.css" />
+<link rel="stylesheet" href="css/diagrams.css" />
 </head>
 <body>
 <header>
   <h1>QACK <span class="accent">MAID</span></h1>
-  <select id="examples">
-    <option value="">Example</option>
-    <option value="sequence">Sequence</option>
-    <option value="er">ER diagram</option>
-    <option value="flowchart">Flowchart</option>
-    <option value="class">Class</option>
-    <option value="gantt">Gantt</option>
-    <option value="state">State</option>
-  </select>
   <select id="theme-select">
     <option value="auto">Theme: Auto</option>
     <option value="default">Theme: Default</option>
@@ -55,9 +47,16 @@
   <button id="present" type="button">Present</button>
 </header>
 <div class="mobile-tabs">
+  <button type="button" class="tab-btn" data-pane="diagrams">Diagrams</button>
   <button type="button" class="tab-btn active" data-pane="source">Source</button>
   <button type="button" class="tab-btn" data-pane="preview">Preview</button>
 </div>
+<div class="workspace">
+<aside id="diagram-list" class="pane" data-pane="diagrams">
+  <div class="pane-label">Diagrams <button id="diagram-collapse" type="button" aria-expanded="true" title="Collapse">«</button></div>
+  <button id="diagram-new" type="button">+ New</button>
+  <ul id="diagram-items"></ul>
+</aside>
 <main>
   <div class="pane active-pane" data-pane="source">
     <div class="pane-label">Mermaid source</div>
@@ -84,6 +83,7 @@
     </div>
   </div>
 </main>
+</div>
 <footer>
   <span>Offline Mermaid renderer. Autosaves to this browser only — nothing leaves your machine.</span>
   <span class="powered-by">Powered by <span class="qack-logo" role="img" aria-label="QACK Skills"></span></span>
@@ -94,8 +94,10 @@
 <script src="js/shared.js"></script>
 <script src="js/logo.js"></script>
 <script src="js/theme.js"></script>
-<script src="js/examples.js"></script>
 <script src="js/render.js"></script>
+<script src="js/diagrams/names.js"></script>
+<script src="js/diagrams/store.js"></script>
+<script src="js/diagrams/session.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/zoom-pan.js"></script>
 <script src="js/presentation/mode.js"></script>
@@ -104,6 +106,7 @@
 <script src="js/export/stamp.js"></script>
 <script src="js/export/png.js"></script>
 <script src="js/export/menu.js"></script>
+<script src="js/diagrams/sidebar.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

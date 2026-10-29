@@ -30,9 +30,15 @@ async function forceFullscreenFallback(page: Page) {
   });
 }
 
+const SEQUENCE_SOURCE = `sequenceDiagram
+    participant A as Client
+    participant B as Server
+    A->>B: Request
+    B-->>A: Response`;
+
 async function loadSequenceExample(page: Page) {
   await page.goto("/index.html");
-  await page.selectOption("#examples", "sequence");
+  await page.fill("#source", SEQUENCE_SOURCE);
   await expect(page.locator("#preview svg[aria-roledescription='sequence']")).toBeVisible();
 }
 

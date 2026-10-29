@@ -6,7 +6,6 @@ let renderSeq = 0;
 
 async function render() {
   const code = sourceEl.value.trim();
-  localStorage.setItem(STORAGE_KEY, sourceEl.value);
   if (!code) {
     previewEl.innerHTML = "";
     previewEl.classList.remove("has-error");

@@ -1,0 +1,90 @@
+/* Diagram list sidebar (desktop). Loads after chrome.css; at <=720px the aside
+   is a .pane without active-pane, so chrome.css hides it. */
+
+  .workspace {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  #diagram-list {
+    flex: 0 0 220px;
+    width: 220px;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+    overflow: hidden;
+  }
+  #diagram-list .pane-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #diagram-collapse {
+    padding: 0 6px;
+    border-color: transparent;
+    background: none;
+    line-height: 1.4;
+  }
+  #diagram-new { margin: 4px 12px 8px; }
+  #diagram-items {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: 0 6px 8px;
+    list-style: none;
+    overflow-y: auto;
+  }
+  .diagram-row {
+    display: flex;
+    align-items: center;
+    border-radius: 6px;
+  }
+  .diagram-row[aria-current="true"] { background: var(--bg); box-shadow: inset 2px 0 0 var(--accent); }
+  .diagram-row button { border-color: transparent; background: none; }
+  .diagram-open {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+  }
+  .diagram-name, .diagram-time { max-width: 100%; }
+  .diagram-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .diagram-time { font-size: 11px; color: var(--muted); }
+  .diagram-row-menu { flex: 0 0 auto; padding: 4px 6px; color: var(--muted); }
+  /* Collapse is desktop only; a stored collapsed flag must not empty the mobile tab. */
+  @media (min-width: 721px) {
+    #diagram-list.collapsed { flex-basis: 40px; width: 40px; }
+    #diagram-list.collapsed .pane-label { padding: 8px 0 4px; justify-content: center; font-size: 0; }
+    #diagram-list.collapsed #diagram-collapse { font-size: 13px; }
+    #diagram-list.collapsed #diagram-new,
+    #diagram-list.collapsed #diagram-items { display: none; }
+  }
+  .diagram-row { flex-wrap: wrap; }
+  .diagram-row-actions {
+    flex: 1 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px 6px;
+    font-size: 12px;
+  }
+  .diagram-row-actions button { border-color: var(--border); }
+  .diagram-rename-input { flex: 1; min-width: 0; margin: 2px 6px; font: inherit; }
+
+  @media (max-width: 720px) {
+    .workspace { flex-direction: column; }
+    #diagram-list.active-pane {
+      flex: 1 1 auto;
+      width: auto;
+      border-right: none;
+    }
+    .workspace:has(> #diagram-list.active-pane) > main { display: none; }
+    #diagram-collapse { display: none; }
+  }
