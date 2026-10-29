@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted, amended by [ADR-0007](0007-named-diagram-library.md)
 
 ## Context
 

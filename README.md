@@ -16,7 +16,7 @@ Offline Mermaid diagram renderer. Paste Mermaid source, get a live preview, expo
 - Export the rendered diagram as SVG or PNG — download it as a file or copy it straight to the clipboard, all from one Export menu
 - Autosaves your source and theme/background preferences to `localStorage` — nothing is sent anywhere
 - Auto light/dark page theme via `prefers-color-scheme`
-- Built-in examples: sequence, ER, flowchart, class, gantt, state diagrams
+- Named Diagram list in a sidebar (a Diagrams tab on mobile), kept in this browser
 
 ## Usage
 
