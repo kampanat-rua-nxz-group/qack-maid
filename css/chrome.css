@@ -33,7 +33,9 @@
     .pane {
       display: none;
     }
-    .pane[data-pane="source"] { flex-basis: auto; }
+    /* Grow to fill main; the desktop rule's flex-grow 0 would size the pane
+       to the textarea's intrinsic height. */
+    .pane[data-pane="source"] { flex: 1 1 auto; }
     .pane[data-pane="preview"] { border-left: none; }
     .pane.active-pane { display: flex; }
     #splitter { display: none; }
