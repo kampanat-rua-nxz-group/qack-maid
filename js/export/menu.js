@@ -17,7 +17,6 @@ function downloadBlob(blob, filename) {
 // show instead — the dispatcher below is the only place that touches the UI.
 
 const exportMenuEl = document.getElementById("export-menu");
-const exportTriggerEl = document.getElementById("export-trigger");
 const toastEl = document.getElementById("toast");
 
 let toastTimer;
@@ -64,32 +63,7 @@ async function runExport(name) {
   }
 }
 
-function setExportMenuOpen(open) {
-  exportMenuEl.classList.toggle("open", open);
-  exportTriggerEl.setAttribute("aria-expanded", String(open));
-}
-
-exportTriggerEl.addEventListener("click", () => {
-  setExportMenuOpen(!exportMenuEl.classList.contains("open"));
-});
-
-exportMenuEl.querySelectorAll("[data-export]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    setExportMenuOpen(false);
-    runExport(btn.dataset.export);
-  });
-});
-
-document.addEventListener("click", (e) => {
-  if (!exportMenuEl.contains(e.target)) setExportMenuOpen(false);
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && exportMenuEl.classList.contains("open")) {
-    setExportMenuOpen(false);
-    exportTriggerEl.focus();
-  }
-});
+wireMenu(exportMenuEl, (item) => runExport(item.dataset.export));
 
 document.getElementById("png-shortcut").textContent =
   navigator.platform.toLowerCase().includes("mac") ? "\u2318S" : "Ctrl+S";

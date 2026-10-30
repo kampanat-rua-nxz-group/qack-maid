@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { pickOption, expectPicked } from "./helpers/pickers";
 
 // Characterization smoke tests for the non-presentation features (editor,
 // theme, Preview background, export) plus a load check over http and file://.
@@ -44,21 +45,21 @@ test.describe("smoke", () => {
 
   test("diagram theme re-renders Preview and persists", async ({ page }) => {
     const before = await previewStyleText(page);
-    await page.selectOption("#theme-select", "dark");
+    await pickOption(page, "theme", "dark");
     await expect.poll(() => previewStyleText(page)).not.toBe(before);
     await page.reload();
-    await expect(page.locator("#theme-select")).toHaveValue("dark");
+    await expectPicked(page, "theme", "dark");
   });
 
   test("Preview background is independent of theme and persists", async ({ page }) => {
     const wrap = page.locator(".preview-wrap");
     expect(await wrap.getAttribute("data-preview")).toBeNull();
-    await page.selectOption("#preview-bg-select", "dark");
+    await pickOption(page, "preview-bg", "dark");
     await expect(wrap).toHaveAttribute("data-preview", "dark");
-    await expect(page.locator("#theme-select")).toHaveValue("auto");
+    await expectPicked(page, "theme", "auto");
     await page.reload();
     await expect(wrap).toHaveAttribute("data-preview", "dark");
-    await page.selectOption("#preview-bg-select", "auto");
+    await pickOption(page, "preview-bg", "auto");
     expect(await wrap.getAttribute("data-preview")).toBeNull();
   });
 
@@ -89,8 +90,8 @@ test.describe("smoke", () => {
 
   for (const bg of ["light", "dark"]) {
     test(`PNG export is opaque and filled with the ${bg} Preview background`, async ({ page }) => {
-      await page.selectOption("#preview-bg-select", bg);
-      await page.selectOption("#theme-select", bg === "dark" ? "dark" : "default");
+      await pickOption(page, "preview-bg", bg);
+      await pickOption(page, "theme", bg === "dark" ? "dark" : "default");
       await page.waitForTimeout(RENDER_SETTLE_MS);
       const result = await page.evaluate(async () => {
         const blob: Blob = await (window as any).buildExportPngBlob();

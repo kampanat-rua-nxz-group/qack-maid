@@ -45,8 +45,17 @@ function applyMermaidTheme() {
   }
 }
 
+// Mark the picked option and show its label on the menu trigger.
+function syncPicker(menuEl, value) {
+  menuEl.querySelectorAll("[role=menuitemradio]").forEach((item) => {
+    const picked = item.dataset.value === value;
+    item.setAttribute("aria-checked", String(picked));
+    if (picked) menuEl.querySelector(".picker-value").textContent = item.textContent;
+  });
+}
+
 function syncThemeUI() {
-  themeSelectEl.value = themeSettings.mode;
+  syncPicker(themeMenuEl, themeSettings.mode);
   colorRowEl.classList.toggle("show", themeSettings.mode === "custom");
   const c = { ...DEFAULT_CUSTOM_COLORS, ...themeSettings.colors };
   colorPrimaryEl.value = c.primary;
@@ -58,8 +67,8 @@ function syncThemeUI() {
 syncThemeUI();
 applyMermaidTheme();
 
-themeSelectEl.addEventListener("change", () => {
-  themeSettings.mode = themeSelectEl.value;
+wireMenu(themeMenuEl, (item) => {
+  themeSettings.mode = item.dataset.value;
   saveThemeSettings(themeSettings);
   syncThemeUI();
   applyMermaidTheme();
@@ -98,11 +107,12 @@ function applyPreviewBg() {
   }
 }
 
-previewBgSelectEl.value = previewBg;
+syncPicker(previewBgMenuEl, previewBg);
 applyPreviewBg();
 
-previewBgSelectEl.addEventListener("change", () => {
-  previewBg = previewBgSelectEl.value;
+wireMenu(previewBgMenuEl, (item) => {
+  previewBg = item.dataset.value;
+  syncPicker(previewBgMenuEl, previewBg);
   localStorage.setItem(PREVIEW_BG_KEY, previewBg);
   applyPreviewBg();
 });

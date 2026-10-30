@@ -1,0 +1,77 @@
+/* Header popup menus: Export and the theme pickers, wired by wireMenu() in
+   shared.js. Loads after app.css (tokens, base button) and before chrome.css,
+   whose narrow-screen override re-anchors .menu-list. */
+
+  .menu-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .menu { position: relative; display: inline-flex; }
+  .menu-trigger { display: inline-flex; align-items: center; gap: 6px; }
+  .menu-trigger .caret {
+    width: 12px;
+    height: 12px;
+    margin-right: -2px;
+    background: var(--muted);
+    -webkit-mask: var(--chevron) no-repeat center / contain;
+    mask: var(--chevron) no-repeat center / contain;
+    transition: transform 0.15s ease-out;
+  }
+  .menu-trigger:hover .caret, .menu.open .caret { background: var(--text); }
+  .menu.open .menu-trigger { border-color: var(--accent); }
+  .menu.open .caret { transform: rotate(180deg); }
+  .menu-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 190px;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    z-index: 20;
+  }
+  .menu.open .menu-list { display: flex; }
+  .menu-list button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: none;
+    text-align: left;
+  }
+  .menu-list button:hover, .menu-list button:focus-visible {
+    border-color: transparent;
+    background: var(--bg);
+    outline: none;
+  }
+  .menu-list .hint { font-size: 11px; color: var(--muted); }
+  /* Pickers: label muted, value in full text color; the list opens rightward
+     from the trigger and marks the picked option with a check. */
+  .picker .menu-trigger { color: var(--muted); }
+  .picker-value { color: var(--text); }
+  .picker .menu-list { left: 0; right: auto; min-width: 168px; }
+  .menu-list [role="menuitemradio"] { justify-content: flex-start; gap: 8px; }
+  .menu-list [role="menuitemradio"]::before {
+    content: "";
+    flex: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    -webkit-mask: var(--check) no-repeat center / contain;
+    mask: var(--check) no-repeat center / contain;
+    visibility: hidden;
+  }
+  .menu-list [aria-checked="true"]::before { visibility: visible; }
+  .menu-group {
+    padding: 6px 10px 2px;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }

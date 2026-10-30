@@ -1,4 +1,4 @@
-/* Base styles: theme tokens, header, Export menu, toast, panes, splitter,
+/* Base styles: theme tokens, header, toast, panes, splitter,
    Source editor, Preview, zoom controls. Loads first of three stylesheets;
    app.css, presentation.css, chrome.css keep the original cascade order. */
 
@@ -13,6 +13,9 @@
     --error-bg: #fdecec;
     --error-border: #e0554f;
     --error-text: #9c1f1a;
+    /* Masks tinted by background color: menu caret and picked-option check. */
+    --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.4 5.8 10 11 4.2' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -73,50 +76,6 @@
     cursor: pointer;
   }
   button:hover, select:hover { border-color: var(--accent); }
-  /* Export menu: one trigger button with a popup list of the four export
-     actions (download/copy x svg/png), so the header stays uncluttered. */
-  .menu { position: relative; display: inline-flex; }
-  .menu-trigger .caret { font-size: 9px; margin-left: 6px; vertical-align: 1px; }
-  .menu-list {
-    display: none;
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    min-width: 190px;
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-    z-index: 20;
-  }
-  .menu.open .menu-list { display: flex; }
-  .menu-list button {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    width: 100%;
-    padding: 7px 10px;
-    border: 1px solid transparent;
-    border-radius: 5px;
-    background: none;
-    text-align: left;
-  }
-  .menu-list button:hover, .menu-list button:focus-visible {
-    border-color: transparent;
-    background: var(--bg);
-  }
-  .menu-list .hint { font-size: 11px; color: var(--muted); }
-  .menu-group {
-    padding: 6px 10px 2px;
-    font-size: 10px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
   #toast {
     position: fixed;
     bottom: 28px;
@@ -244,18 +203,32 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 4px 6px;
+    padding: 3px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     z-index: 3;
   }
+  /* Borderless icon buttons inside one bordered group, like the row menu trigger. */
   .zoom-controls button {
-    padding: 2px 9px;
-    font-size: 14px;
-    line-height: 1.4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-color: transparent;
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
   }
+  .zoom-controls button:hover:not(:disabled) { color: var(--text); background: var(--bg); }
+  .zoom-controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .zoom-controls button:disabled { opacity: 0.4; cursor: default; }
+  #zoom-reset { font-size: 12px; font-weight: 600; }
+  .zoom-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--border); }
   #zoom-level {
     font-size: 11px;
+    font-variant-numeric: tabular-nums;
     color: var(--muted);
-    min-width: 36px;
+    min-width: 38px;
     text-align: center;
   }

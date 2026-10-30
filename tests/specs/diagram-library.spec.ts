@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { RENDER_SETTLE_MS, seedLegacySource, seedLibrary, storedLibrary } from "./helpers/diagrams";
+import { pickOption } from "./helpers/pickers";
 
 test.describe("library storage", () => {
   test("uniqueName appends a minute stamp, then seconds", async ({ page }) => {
@@ -81,7 +82,7 @@ test.describe("library storage", () => {
     await page.goto("/index.html");
     await expect(page.locator("#preview svg")).toBeVisible();
     const before = await storedLibrary(page);
-    await page.selectOption("#theme-select", "dark");
+    await pickOption(page, "theme", "dark");
     await page.waitForTimeout(RENDER_SETTLE_MS);
     const after = await storedLibrary(page);
     expect(after).toEqual(before);

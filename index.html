@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧜</text></svg>" />
 <link rel="stylesheet" href="css/app.css" />
+<link rel="stylesheet" href="css/menu.css" />
 <link rel="stylesheet" href="css/presentation.css" />
 <link rel="stylesheet" href="css/chrome.css" />
 <link rel="stylesheet" href="css/diagrams.css" />
@@ -13,19 +14,26 @@
 <body>
 <header>
   <h1>QACK <span class="accent">MAID</span></h1>
-  <select id="theme-select">
-    <option value="auto">Theme: Auto</option>
-    <option value="default">Theme: Default</option>
-    <option value="dark">Theme: Dark</option>
-    <option value="forest">Theme: Forest</option>
-    <option value="neutral">Theme: Neutral</option>
-    <option value="custom">Theme: Custom colors</option>
-  </select>
-  <select id="preview-bg-select">
-    <option value="auto">Preview: Auto</option>
-    <option value="light">Preview: Light</option>
-    <option value="dark">Preview: Dark</option>
-  </select>
+  <div class="menu picker" id="theme-menu">
+    <button type="button" class="menu-trigger" id="theme-trigger" aria-haspopup="menu" aria-expanded="false">Theme: <span class="picker-value">Auto</span><span class="caret" aria-hidden="true"></span></button>
+    <div class="menu-list" role="menu" aria-label="Diagram theme">
+      <button type="button" role="menuitemradio" aria-checked="true" data-value="auto">Auto</button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="default">Default</button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="dark">Dark</button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="forest">Forest</button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="neutral">Neutral</button>
+      <div class="menu-divider" role="separator"></div>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="custom">Custom colors</button>
+    </div>
+  </div>
+  <div class="menu picker" id="preview-bg-menu">
+    <button type="button" class="menu-trigger" id="preview-bg-trigger" aria-haspopup="menu" aria-expanded="false">Preview: <span class="picker-value">Auto</span><span class="caret" aria-hidden="true"></span></button>
+    <div class="menu-list" role="menu" aria-label="Preview background">
+      <button type="button" role="menuitemradio" aria-checked="true" data-value="auto">Auto</button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="light">Light</button>
+      <button type="button" role="menuitemradio" aria-checked="false" data-value="dark">Dark</button>
+    </div>
+  </div>
   <div id="color-row">
     <label>Primary <input type="color" id="color-primary" /></label>
     <label>Text <input type="color" id="color-text" /></label>
@@ -36,7 +44,7 @@
   <div class="spacer"></div>
   <button id="format">Format</button>
   <div class="menu" id="export-menu">
-    <button type="button" class="menu-trigger" id="export-trigger" aria-haspopup="true" aria-expanded="false">Export<span class="caret">▾</span></button>
+    <button type="button" class="menu-trigger" id="export-trigger" aria-haspopup="menu" aria-expanded="false">Export<span class="caret" aria-hidden="true"></span></button>
     <div class="menu-list" role="menu" aria-labelledby="export-trigger">
       <div class="menu-group">Download</div>
       <button type="button" role="menuitem" data-export="download-png">PNG file<span class="hint" id="png-shortcut"></span></button>
@@ -76,9 +84,10 @@
       </div>
     </div>
     <div class="zoom-controls">
-      <button id="zoom-out" type="button" title="Zoom out">&minus;</button>
-      <span id="zoom-level">100%</span>
-      <button id="zoom-in" type="button" title="Zoom in">+</button>
+      <button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 8h9"/></svg></button>
+      <span id="zoom-level" aria-live="polite">100%</span>
+      <button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 8h9M8 3.5v9"/></svg></button>
+      <span class="zoom-divider" aria-hidden="true"></span>
       <button id="zoom-reset" type="button" title="Reset zoom">Fit</button>
     </div>
   </div>
