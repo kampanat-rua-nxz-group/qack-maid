@@ -12,6 +12,10 @@ const diagramNewEl = document.getElementById("diagram-new");
 // diagrams:changed events cannot destroy it; closing it rebuilds the list.
 let rowUi = null;
 
+const MORE_ICON =
+  '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor">' +
+  '<circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>';
+
 function renderDiagramList() {
   if (rowUi) return;
   const now = Date.now();
@@ -37,7 +41,9 @@ function renderDiagramList() {
     menu.type = "button";
     menu.className = "diagram-row-menu";
     menu.setAttribute("aria-label", "Diagram actions");
-    menu.textContent = "⋯";
+    menu.setAttribute("aria-haspopup", "menu");
+    menu.setAttribute("aria-expanded", "false");
+    menu.innerHTML = MORE_ICON;
 
     row.append(open, menu);
     return row;
@@ -51,14 +57,23 @@ function closeRowUi() {
   renderDiagramList();
 }
 
-function actionButton(action, label) {
+function actionButton(action, label, className) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.dataset.action = action;
   btn.textContent = label;
+  if (className) btn.className = className;
   return btn;
 }
 
+function menuItem(action, label, className) {
+  const btn = actionButton(action, label, className);
+  btn.setAttribute("role", "menuitem");
+  return btn;
+}
+
+// The row menu floats over the list (positioned in diagrams.css), so opening
+// it never changes row height. Delete swaps the menu for an inline confirmation.
 function showRowMenu(row) {
   const wasOpen = rowUi && rowUi.row === row;
   closeRowUi();
@@ -67,16 +82,57 @@ function showRowMenu(row) {
   if (!fresh) return;
   const actions = document.createElement("div");
   actions.className = "diagram-row-actions";
-  actions.append(actionButton("duplicate", "Duplicate"), actionButton("rename", "Rename"), actionButton("delete", "Delete"));
+  actions.setAttribute("role", "menu");
+  actions.setAttribute("aria-label", "Diagram actions");
+  const divider = document.createElement("div");
+  divider.className = "menu-divider";
+  divider.setAttribute("role", "separator");
+  actions.append(
+    menuItem("duplicate", "Duplicate"),
+    menuItem("rename", "Rename"),
+    divider,
+    menuItem("delete", "Delete…", "danger"),
+  );
   fresh.append(actions);
+  fresh.querySelector(".diagram-row-menu").setAttribute("aria-expanded", "true");
   rowUi = { row: fresh, actions };
+  actions.scrollIntoView({ block: "nearest" });
+  actions.querySelector("[role=menuitem]").focus();
 }
 
 function showDeleteConfirm() {
   const { row, actions } = rowUi;
-  const label = document.createElement("span");
-  label.textContent = 'Delete "' + row.querySelector(".diagram-name").textContent + '"?';
-  actions.replaceChildren(label, actionButton("confirm-delete", "Delete"), actionButton("cancel-delete", "Cancel"));
+  const title = document.createElement("p");
+  title.className = "confirm-title";
+  title.textContent = 'Delete "' + row.querySelector(".diagram-name").textContent + '"?';
+  title.title = title.textContent;
+  const hint = document.createElement("p");
+  hint.className = "confirm-hint";
+  hint.textContent = "This can't be undone.";
+  const buttons = document.createElement("div");
+  buttons.className = "confirm-buttons";
+  const cancel = actionButton("cancel-delete", "Cancel");
+  buttons.append(cancel, actionButton("confirm-delete", "Delete", "danger"));
+  actions.className = "diagram-row-actions confirm";
+  actions.setAttribute("role", "alertdialog");
+  actions.setAttribute("aria-label", "Confirm delete");
+  actions.replaceChildren(title, hint, buttons);
+  cancel.focus();
+}
+
+// Escape closes the menu or confirmation and puts focus back on the row's trigger.
+function closeRowUiToTrigger() {
+  const id = rowUi.row.dataset.id;
+  closeRowUi();
+  const trigger = diagramItemsEl.querySelector('.diagram-row[data-id="' + id + '"] .diagram-row-menu');
+  if (trigger) trigger.focus();
+}
+
+function moveMenuFocus(step) {
+  const items = [...rowUi.actions.querySelectorAll("[role=menuitem]")];
+  if (!items.length) return;
+  const at = items.indexOf(document.activeElement);
+  items[(at + step + items.length) % items.length].focus();
 }
 
 function startRename() {
@@ -161,6 +217,17 @@ diagramItemsEl.addEventListener("click", (e) => {
   openDiagramById(open.closest(".diagram-row").dataset.id);
   // On mobile the list replaces the editor; show the opened Diagram. No visible effect on desktop.
   document.querySelector('.tab-btn[data-pane="source"]').click();
+});
+
+diagramItemsEl.addEventListener("keydown", (e) => {
+  if (!rowUi || rowUi.input) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeRowUiToTrigger();
+  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    moveMenuFocus(e.key === "ArrowDown" ? 1 : -1);
+  }
 });
 
 // A target detached by the row handler (e.g. Delete swapping in the confirmation) is not outside.
