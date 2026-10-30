@@ -9,7 +9,6 @@
     --text: #1a1a1e;
     --muted: #6b6b74;
     --accent: #2f6fed;
-    --accent-2: #5b8ef7;
     --error-bg: #fdecec;
     --error-border: #e0554f;
     --error-text: #9c1f1a;
@@ -25,7 +24,6 @@
       --text: #eaeaef;
       --muted: #9a9aa5;
       --accent: #6c9bff;
-      --accent-2: #a5c3ff;
       --error-bg: #3a1c1c;
       --error-border: #b6473f;
       --error-text: #ff8f88;
@@ -57,13 +55,8 @@
     margin: 0;
     letter-spacing: -0.02em;
   }
-  /* Wordmark styling follows the qack-pulse dashboard title. */
-  header h1 .accent {
-    background: linear-gradient(135deg, var(--accent-2) 0%, var(--accent) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
+  /* Solid accent: weight carries the emphasis, not a gradient fill. */
+  header h1 .accent { color: var(--accent); }
   header .spacer { flex: 1; }
   select, button {
     font: inherit;
