@@ -64,10 +64,37 @@ test.describe("row actions", () => {
     await expect.poll(() => names(page)).toEqual(["Login flow", "Order ER"]);
   });
 
-  test("blur commits rename", async ({ page }) => {
+  test("clicking elsewhere cancels rename", async ({ page }) => {
     await startRename(page, "Order ER", "Orders");
     await page.locator("#source").click();
+    await expect(page.locator(".diagram-rename-input")).toHaveCount(0);
+    await expect.poll(() => names(page)).toEqual(["Login flow", "Order ER"]);
+  });
+
+  test("Space types into the name instead of ending the rename", async ({ page }) => {
+    const input = await startRename(page, "Order ER", "Order");
+    await input.press("End");
+    await page.keyboard.type(" ER v2");
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue("Order ER v2");
+    await expect.poll(() => names(page)).toEqual(["Login flow"]);
+    await page.getByRole("button", { name: "Save name" }).click();
+    await expect.poll(() => names(page)).toEqual(["Login flow", "Order ER v2"]);
+    await expect(row(page, "Login flow")).toHaveAttribute("aria-current", "true");
+  });
+
+  test("Save button commits rename", async ({ page }) => {
+    await startRename(page, "Order ER", "Orders");
+    await page.getByRole("button", { name: "Save name" }).click();
+    await expect(page.locator(".diagram-rename-input")).toHaveCount(0);
     await expect.poll(() => names(page)).toEqual(["Login flow", "Orders"]);
+  });
+
+  test("Cancel button discards rename", async ({ page }) => {
+    await startRename(page, "Order ER", "Nope");
+    await page.getByRole("button", { name: "Cancel rename" }).click();
+    await expect(page.locator(".diagram-rename-input")).toHaveCount(0);
+    await expect.poll(() => names(page)).toEqual(["Login flow", "Order ER"]);
   });
 
   test("renaming the open Diagram survives later autosaves", async ({ page }) => {
