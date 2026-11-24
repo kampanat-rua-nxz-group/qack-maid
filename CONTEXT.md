@@ -4,7 +4,7 @@ Domain glossary for qack-maid. Use these terms as defined here; don't drift to s
 
 ## Terms
 
-- **Source** — the raw Mermaid text a user types into the left pane (`textarea#source`). Each Diagram has its own Source, persisted verbatim to `localStorage` under `qack-maid:diagram:<id>` on every keystroke, valid or not.
+- **Source** — the raw Mermaid text a user types into the left pane (`textarea#source`). The textarea is the only editable element, shown through a syntax-highlighting overlay with a line-number gutter, and the gutter number of the line a failed Render reports turns red. Each Diagram has its own Source, persisted verbatim to `localStorage` under `qack-maid:diagram:<id>` on every keystroke, valid or not.
 - **Preview** — the rendered SVG shown in the right pane (`#preview`), produced by feeding Source to `mermaid.render()`. Distinct from Source: Preview can be stale/absent (e.g. on a render error) while Source keeps updating.
 - **Render** — the act of turning Source into Preview. Debounced 250ms after the last keystroke; not synchronous with typing.
 - **Diagram** — a named Source with a last-edited time, one of many kept in the library. Opening a Diagram shows its Source as it was left. Names are unique, compared trimmed and case-insensitively.
