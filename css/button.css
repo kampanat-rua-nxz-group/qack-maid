@@ -1,0 +1,55 @@
+/* Button variants modeled on shadcn/ui's Button: .btn is the outline variant;
+   add .btn-primary, .btn-ghost or .btn-destructive for the others, and
+   .btn-sm / .btn-icon for sizes. Loads right after app.css (tokens), so
+   feature stylesheets loaded later can override a variant for one control. */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: var(--shadow-xs);
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { background: var(--hover); }
+  .btn:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--ring);
+  }
+  .btn:disabled { opacity: 0.5; pointer-events: none; }
+
+  .btn-primary {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: var(--primary-fg);
+  }
+  .btn-primary:hover { background: color-mix(in srgb, var(--primary) 88%, var(--bg)); }
+
+  .btn-ghost {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  .btn-ghost:hover { background: var(--hover); }
+
+  .btn-destructive {
+    border-color: var(--destructive);
+    background: var(--destructive);
+    color: #fff;
+  }
+  .btn-destructive:hover { background: color-mix(in srgb, var(--destructive) 88%, #000); }
+
+  .btn-sm { height: 28px; padding: 0 10px; gap: 4px; font-size: 12px; }
+  .btn-icon { width: 32px; padding: 0; }
+  .btn-icon.btn-sm { width: 28px; }

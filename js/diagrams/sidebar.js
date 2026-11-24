@@ -91,7 +91,7 @@ function showRowMenu(row) {
     menuItem("duplicate", "Duplicate"),
     menuItem("rename", "Rename"),
     divider,
-    menuItem("delete", "Delete…", "danger"),
+    menuItem("delete", "Delete", "danger"),
   );
   fresh.append(actions);
   fresh.querySelector(".diagram-row-menu").setAttribute("aria-expanded", "true");

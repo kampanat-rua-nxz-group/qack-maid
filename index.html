@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧜</text></svg>" />
 <link rel="stylesheet" href="css/app.css" />
+<link rel="stylesheet" href="css/button.css" />
 <link rel="stylesheet" href="css/menu.css" />
 <link rel="stylesheet" href="css/presentation.css" />
 <link rel="stylesheet" href="css/chrome.css" />
@@ -15,7 +16,7 @@
 <header>
   <h1>QACK <span class="accent">MAID</span></h1>
   <div class="menu picker" id="theme-menu">
-    <button type="button" class="menu-trigger" id="theme-trigger" aria-haspopup="menu" aria-expanded="false">Theme: <span class="picker-value">Auto</span><span class="caret" aria-hidden="true"></span></button>
+    <button type="button" class="btn menu-trigger" id="theme-trigger" aria-haspopup="menu" aria-expanded="false">Theme: <span class="picker-value">Auto</span><span class="caret" aria-hidden="true"></span></button>
     <div class="menu-list" role="menu" aria-label="Diagram theme">
       <button type="button" role="menuitemradio" aria-checked="true" data-value="auto">Auto</button>
       <button type="button" role="menuitemradio" aria-checked="false" data-value="default">Default</button>
@@ -27,7 +28,7 @@
     </div>
   </div>
   <div class="menu picker" id="preview-bg-menu">
-    <button type="button" class="menu-trigger" id="preview-bg-trigger" aria-haspopup="menu" aria-expanded="false">Preview: <span class="picker-value">Auto</span><span class="caret" aria-hidden="true"></span></button>
+    <button type="button" class="btn menu-trigger" id="preview-bg-trigger" aria-haspopup="menu" aria-expanded="false">Preview: <span class="picker-value">Auto</span><span class="caret" aria-hidden="true"></span></button>
     <div class="menu-list" role="menu" aria-label="Preview background">
       <button type="button" role="menuitemradio" aria-checked="true" data-value="auto">Auto</button>
       <button type="button" role="menuitemradio" aria-checked="false" data-value="light">Light</button>
@@ -39,12 +40,12 @@
     <label>Text <input type="color" id="color-text" /></label>
     <label>Line <input type="color" id="color-line" /></label>
     <label>Secondary <input type="color" id="color-secondary" /></label>
-    <button id="reset-colors" type="button">Reset colors</button>
+    <button id="reset-colors" type="button" class="btn btn-sm">Reset colors</button>
   </div>
   <div class="spacer"></div>
-  <button id="format">Format</button>
+  <button id="format" type="button" class="btn">Format</button>
   <div class="menu" id="export-menu">
-    <button type="button" class="menu-trigger" id="export-trigger" aria-haspopup="menu" aria-expanded="false">Export<span class="caret" aria-hidden="true"></span></button>
+    <button type="button" class="btn btn-primary menu-trigger" id="export-trigger" aria-haspopup="menu" aria-expanded="false">Export<span class="caret" aria-hidden="true"></span></button>
     <div class="menu-list" role="menu" aria-labelledby="export-trigger">
       <div class="menu-group">Download</div>
       <button type="button" role="menuitem" data-export="download-png">PNG file<span class="hint" id="png-shortcut"></span></button>
@@ -52,7 +53,7 @@
       <button type="button" role="menuitem" data-export="copy-png">PNG image</button>
     </div>
   </div>
-  <button id="present" type="button">Present</button>
+  <button id="present" type="button" class="btn">Present</button>
 </header>
 <div class="mobile-tabs">
   <button type="button" class="tab-btn" data-pane="diagrams">Diagrams</button>
@@ -62,7 +63,7 @@
 <div class="workspace">
 <aside id="diagram-list" class="pane" data-pane="diagrams">
   <div class="pane-label">Diagrams <button id="diagram-collapse" type="button" aria-expanded="true" title="Collapse">«</button></div>
-  <button id="diagram-new" type="button">+ New</button>
+  <button id="diagram-new" type="button" class="btn">+ New</button>
   <ul id="diagram-items"></ul>
 </aside>
 <main>
@@ -77,10 +78,10 @@
       <div id="error-banner"></div>
       <div id="preview"></div>
       <div id="presentation-toolbar" class="presentation-toolbar">
-        <button id="tool-pointer" type="button" class="presentation-tool" aria-pressed="true" title="Pointer">Pointer</button>
-        <button id="tool-laser" type="button" class="presentation-tool" aria-pressed="false" title="Laser">Laser</button>
+        <button id="tool-pointer" type="button" class="btn presentation-tool" aria-pressed="true" title="Pointer">Pointer</button>
+        <button id="tool-laser" type="button" class="btn presentation-tool" aria-pressed="false" title="Laser">Laser</button>
         <input id="laser-color" type="color" title="Laser color" aria-label="Laser color" value="#dc2626" />
-        <button id="presentation-exit" type="button" title="Esc">Exit presentation</button>
+        <button id="presentation-exit" type="button" class="btn" title="Esc">Exit presentation</button>
       </div>
     </div>
     <div class="zoom-controls">

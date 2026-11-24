@@ -52,9 +52,9 @@
   }
   /* Active tool (issue #7): visibly marked via aria-pressed. */
   .presentation-tool[aria-pressed="true"] {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
+    background: var(--primary);
+    color: var(--primary-fg);
+    border-color: var(--primary);
   }
   .presentation-toolbar input[type="color"] {
     width: 24px;

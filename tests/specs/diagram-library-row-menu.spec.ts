@@ -20,7 +20,7 @@ test.describe("row menu popover", () => {
     const before = (await target.boundingBox())!.height;
     await target.locator(".diagram-row-menu").click();
     const menu = page.getByRole("menu", { name: "Diagram actions" });
-    await expect(menu.getByRole("menuitem")).toHaveText(["Duplicate", "Rename", "Delete…"]);
+    await expect(menu.getByRole("menuitem")).toHaveText(["Duplicate", "Rename", "Delete"]);
     expect((await target.boundingBox())!.height).toBe(before);
     await expect(target.locator(".diagram-row-menu")).toHaveAttribute("aria-expanded", "true");
     await expect(menu.getByRole("menuitem", { name: "Duplicate" })).toBeFocused();
@@ -32,7 +32,7 @@ test.describe("row menu popover", () => {
     await expect(page.getByRole("menuitem", { name: "Rename" })).toBeFocused();
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowUp");
-    await expect(page.getByRole("menuitem", { name: "Delete…" })).toBeFocused();
+    await expect(page.getByRole("menuitem", { name: "Delete", exact: true })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(page.locator(".diagram-row-actions")).toHaveCount(0);
     await expect(row(page, "Order ER").locator(".diagram-row-menu")).toBeFocused();

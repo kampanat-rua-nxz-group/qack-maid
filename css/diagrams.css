@@ -18,12 +18,18 @@
     align-items: center;
     justify-content: space-between;
   }
+  /* Ghost icon button (button.css .btn-ghost .btn-icon .btn-sm). */
   #diagram-collapse {
-    padding: 0 6px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
     border-color: transparent;
     background: none;
-    line-height: 1.4;
+    color: var(--muted);
+    line-height: 1;
   }
+  #diagram-collapse:hover { background: var(--hover); color: var(--text); }
+  #diagram-collapse:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
   #diagram-new { margin: 4px 12px 8px; }
   #diagram-items {
     flex: 1;
@@ -38,7 +44,7 @@
     align-items: center;
     border-radius: 6px;
   }
-  .diagram-row[aria-current="true"] { background: var(--bg); box-shadow: inset 2px 0 0 var(--accent); }
+  .diagram-row[aria-current="true"] { background: var(--bg); box-shadow: inset 0 0 0 1px var(--accent); }
   .diagram-row button { border-color: transparent; background: none; }
   .diagram-open {
     flex: 1;
@@ -56,7 +62,8 @@
     text-overflow: ellipsis;
   }
   .diagram-time { font-size: 11px; color: var(--muted); }
-  .diagram-row-menu { flex: 0 0 auto; padding: 4px 6px; color: var(--muted); }
+  /* Ghost icon button, inset from the row's right edge. */
+  .diagram-row-menu { flex: 0 0 auto; padding: 4px 6px; margin-right: 6px; color: var(--muted); }
   /* Collapse is desktop only; a stored collapsed flag must not empty the mobile tab. */
   @media (min-width: 721px) {
     #diagram-list.collapsed { flex-basis: 40px; width: 40px; }
@@ -69,35 +76,17 @@
      opening it never reflows the list. */
   .diagram-row { position: relative; }
   .diagram-row-menu { display: inline-flex; align-items: center; }
-  .diagram-row-menu:hover, .diagram-row-menu[aria-expanded="true"] { color: var(--text); background: var(--bg); }
+  .diagram-row-menu:hover, .diagram-row-menu[aria-expanded="true"] { color: var(--text); background: var(--hover); }
+  .diagram-row-menu:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring); }
   .diagram-row-actions {
     position: absolute;
     top: calc(100% - 4px);
-    right: 32px; /* clear of the trigger column, so other rows' menus stay reachable */
-    z-index: 20;
+    right: 38px; /* clear of the trigger column, so other rows' menus stay reachable */
     display: flex;
-    flex-direction: column;
-    gap: 2px;
     width: 168px;
-    max-width: calc(100% - 36px);
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    max-width: calc(100% - 42px);
   }
-  .diagram-row-actions [role="menuitem"] {
-    width: 100%;
-    padding: 7px 10px;
-    border-radius: 5px;
-    text-align: left;
-  }
-  .diagram-row-actions [role="menuitem"]:hover,
-  .diagram-row-actions [role="menuitem"]:focus-visible { background: var(--bg); outline: none; }
-  .diagram-row-actions [role="menuitem"].danger { color: var(--error-text); }
-  .diagram-row-actions [role="menuitem"].danger:hover,
-  .diagram-row-actions [role="menuitem"].danger:focus-visible { background: var(--error-bg); }
-  .menu-divider { height: 1px; margin: 3px 6px; background: var(--border); }
+  /* Panel, item and divider styles are shared with the header menus in menu.css. */
 
   .diagram-row-actions.confirm { gap: 0; padding: 12px; }
   .confirm-title {
@@ -110,13 +99,26 @@
   }
   .confirm-hint { margin: 2px 0 12px; font-size: 12px; color: var(--muted); }
   .confirm-buttons { display: flex; justify-content: flex-end; gap: 6px; }
-  .diagram-row .confirm-buttons button { border-color: var(--border); background: var(--bg); }
-  .diagram-row .confirm-buttons button.danger {
-    border-color: var(--error-border);
-    background: var(--error-bg);
-    color: var(--error-text);
+  /* Outline Cancel and destructive Delete, matching button.css's .btn variants
+     (sidebar.js builds these buttons without the .btn classes). */
+  .diagram-row .confirm-buttons button {
+    height: 28px;
+    padding: 0 10px;
+    border-color: var(--border);
+    background: var(--bg);
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: var(--shadow-xs);
   }
-  .diagram-row .confirm-buttons button.danger:hover { border-color: var(--error-text); }
+  .diagram-row .confirm-buttons button:hover { background: var(--hover); }
+  .diagram-row .confirm-buttons button.danger {
+    border-color: var(--destructive);
+    background: var(--destructive);
+    color: #fff;
+  }
+  .diagram-row .confirm-buttons button.danger:hover {
+    background: color-mix(in srgb, var(--destructive) 88%, #000);
+  }
   .diagram-rename {
     flex: 1;
     min-width: 0;
