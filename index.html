@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧜</text></svg>" />
 <link rel="stylesheet" href="css/app.css" />
+<link rel="stylesheet" href="css/source-editor.css" />
 <link rel="stylesheet" href="css/button.css" />
 <link rel="stylesheet" href="css/menu.css" />
 <link rel="stylesheet" href="css/presentation.css" />
@@ -69,7 +70,13 @@
 <main>
   <div class="pane active-pane" data-pane="source">
     <div class="pane-label">Mermaid source</div>
-    <textarea id="source" spellcheck="false" autocomplete="off"></textarea>
+    <div class="source-editor">
+      <div class="source-gutter" aria-hidden="true"><div class="source-gutter-lines"></div></div>
+      <div class="source-body">
+        <pre class="source-highlight" aria-hidden="true"><code></code></pre>
+        <textarea id="source" wrap="off" spellcheck="false" autocomplete="off"></textarea>
+      </div>
+    </div>
   </div>
   <div id="splitter"></div>
   <div class="pane" data-pane="preview">
@@ -109,6 +116,9 @@
 <script src="js/diagrams/store.js"></script>
 <script src="js/diagrams/session.js"></script>
 <script src="js/editor.js"></script>
+<script src="js/source/highlight.js"></script>
+<script src="js/source/view.js"></script>
+<script src="js/source/keys.js"></script>
 <script src="js/zoom-pan.js"></script>
 <script src="js/presentation/mode.js"></script>
 <script src="js/presentation/laser.js"></script>

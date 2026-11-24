@@ -10,6 +10,7 @@ async function render() {
     previewEl.innerHTML = "";
     previewEl.classList.remove("has-error");
     errorEl.classList.remove("show", "jumpable");
+    markSourceErrorLine(null);
     previewStatusEl.textContent = "";
     updatePresentAvailability();
     return;
@@ -21,6 +22,7 @@ async function render() {
     previewEl.innerHTML = svg;
     previewEl.classList.remove("has-error");
     errorEl.classList.remove("show", "jumpable");
+    markSourceErrorLine(null);
     applyZoom();
   } catch (err) {
     previewEl.classList.add("has-error");
@@ -32,7 +34,9 @@ async function render() {
       errorEl.dataset.line = lineMatch[1];
       errorEl.classList.add("jumpable");
       errorEl.title = "Click to jump to line " + lineMatch[1];
+      markSourceErrorLine(parseInt(lineMatch[1], 10));
     } else {
+      markSourceErrorLine(null);
       delete errorEl.dataset.line;
       errorEl.classList.remove("jumpable");
       errorEl.title = "";
@@ -52,7 +56,7 @@ function jumpToLine(lineNum) {
   const lineText = lines[lineNum - 1] || "";
   sourceEl.focus();
   sourceEl.setSelectionRange(charIndex, charIndex + lineText.length);
-  const lineHeight = 13 * 1.5;
+  const lineHeight = parseFloat(getComputedStyle(sourceEl).lineHeight);
   sourceEl.scrollTop = Math.max(0, (lineNum - 1) * lineHeight - sourceEl.clientHeight / 2);
 }
 
