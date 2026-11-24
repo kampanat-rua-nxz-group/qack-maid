@@ -135,17 +135,37 @@ function moveMenuFocus(step) {
   items[(at + step + items.length) % items.length].focus();
 }
 
+function renameButton(label, text, type) {
+  const btn = document.createElement("button");
+  btn.type = type;
+  btn.textContent = text;
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  // Keep focus in the input, so pressing a button never counts as leaving it.
+  btn.addEventListener("mousedown", (e) => e.preventDefault());
+  return btn;
+}
+
+// The rename form replaces the whole row button: an input inside a <button>
+// lets Space activate the button, which opened the Diagram and ended the rename.
+// Only Save or Enter commits; Cancel, Escape or moving focus away cancels.
 function startRename() {
   const { row } = rowUi;
   const id = row.dataset.id;
-  const nameEl = row.querySelector(".diagram-name");
-  const original = nameEl.textContent;
+  const openEl = row.querySelector(".diagram-open");
   row.querySelector(".diagram-row-actions").remove();
+  const form = document.createElement("form");
+  form.className = "diagram-rename";
   const input = document.createElement("input");
   input.className = "diagram-rename-input";
-  input.value = original;
+  input.value = row.querySelector(".diagram-name").textContent;
   input.setAttribute("aria-label", "Diagram name");
-  nameEl.replaceWith(input);
+  const save = renameButton("Save name", "✓", "submit");
+  save.className = "diagram-rename-save";
+  const cancel = renameButton("Cancel rename", "✕", "button");
+  form.append(input, save, cancel);
+  openEl.replaceWith(form);
+  row.classList.add("renaming");
   rowUi = { row, input };
   let done = false;
   const finish = (commit) => {
@@ -159,11 +179,20 @@ function startRename() {
     if (result.status === "ok" && id === openDiagram.id) openDiagram = { ...openDiagram, name: result.name };
     renderDiagramList();
   };
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") finish(true);
-    else if (e.key === "Escape") finish(false);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    finish(true);
   });
-  input.addEventListener("blur", () => finish(true));
+  cancel.addEventListener("click", () => finish(false));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") finish(false);
+  });
+  // Checked after focus settles; switching windows keeps activeElement, so it does not cancel.
+  form.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if (!form.contains(document.activeElement)) finish(false);
+    });
+  });
   input.focus();
   input.select();
 }

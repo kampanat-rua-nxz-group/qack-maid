@@ -117,7 +117,19 @@
     color: var(--error-text);
   }
   .diagram-row .confirm-buttons button.danger:hover { border-color: var(--error-text); }
-  .diagram-rename-input { flex: 1; min-width: 0; margin: 2px 6px; font: inherit; }
+  .diagram-rename {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin: 2px 4px 2px 6px;
+  }
+  .diagram-rename-input { flex: 1; min-width: 0; font: inherit; }
+  .diagram-rename button { flex: 0 0 auto; padding: 4px 6px; color: var(--muted); }
+  .diagram-rename button:hover, .diagram-rename button:focus-visible { color: var(--text); background: var(--bg); }
+  .diagram-row .diagram-rename .diagram-rename-save { color: var(--accent); }
+  .diagram-row.renaming .diagram-row-menu { display: none; }
 
   @media (max-width: 720px) {
     .workspace { flex-direction: column; }
